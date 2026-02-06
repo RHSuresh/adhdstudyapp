@@ -1,157 +1,121 @@
-import { useState, useCallback } from 'react';
-import { Task, UserRole, ChatMessage } from '@/types/task';
-import { TaskList } from '@/components/TaskList';
-import { ChatBot } from '@/components/ChatBot';
-import { RoleSwitcher } from '@/components/RoleSwitcher';
-import { generateBotResponse, generateSampleTasks } from '@/lib/chat-helpers';
-import { Sparkles, ListTodo, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Sparkles, GraduationCap, Users, School, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const [role, setRole] = useState<UserRole>('student');
-  const [tasks, setTasks] = useState<Task[]>(generateSampleTasks());
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeView, setActiveView] = useState<'tasks' | 'chat'>('tasks');
-
-  const handleToggleComplete = useCallback((id: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
-  }, []);
-
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      // Add user message
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        content,
-        role: 'user',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      setIsTyping(true);
-
-      // Simulate bot response with delay
-      setTimeout(() => {
-        const botResponse: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          content: generateBotResponse(content, tasks),
-          role: 'assistant',
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, botResponse]);
-        setIsTyping(false);
-      }, 800 + Math.random() * 700);
+  const portals = [
+    {
+      role: 'student',
+      title: 'Student',
+      description: 'Complete tasks, earn points, and level up!',
+      icon: GraduationCap,
+      color: 'bg-primary',
+      href: '/auth/student',
     },
-    [tasks]
-  );
-
-  const incompleteTasks = tasks.filter((t) => !t.completed).length;
+    {
+      role: 'parent',
+      title: 'Parent',
+      description: "Monitor your child's progress and achievements",
+      icon: Users,
+      color: 'bg-success',
+      href: '/auth/parent',
+    },
+    {
+      role: 'teacher',
+      title: 'Teacher',
+      description: 'Assign tasks and approve completions',
+      icon: School,
+      color: 'bg-warning',
+      href: '/auth/teacher',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container max-w-6xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="font-bold text-lg leading-tight">Focus Flow</h1>
-                <p className="text-xs text-muted-foreground">Stay on track, one task at a time</p>
-              </div>
-            </div>
-
-            {/* Role Switcher */}
-            <RoleSwitcher currentRole={role} onRoleChange={setRole} />
+      <header className="container max-w-6xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-primary-foreground" />
           </div>
+          <h1 className="font-bold text-xl">Focus Flow</h1>
         </div>
       </header>
 
-      {/* Mobile View Toggle */}
-      <div className="lg:hidden sticky top-[73px] z-10 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container max-w-6xl mx-auto px-4 py-2">
-          <div className="flex items-center gap-2 p-1 bg-secondary rounded-full">
-            <button
-              onClick={() => setActiveView('tasks')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                activeView === 'tasks'
-                  ? 'bg-card text-foreground shadow-soft'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <ListTodo className="w-4 h-4" />
-              Tasks
-              {incompleteTasks > 0 && (
-                <span className="ml-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                  {incompleteTasks}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveView('chat')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                activeView === 'chat'
-                  ? 'bg-card text-foreground shadow-soft'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <MessageCircle className="w-4 h-4" />
-              Chat
-            </button>
+      {/* Hero */}
+      <main className="container max-w-6xl mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent rounded-full text-sm font-medium text-accent-foreground mb-6">
+            <Sparkles className="w-4 h-4" />
+            Built for students with ADHD
           </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+            Stay focused,<br />
+            <span className="text-primary">one task at a time</span>
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+            A calm, distraction-free study app that helps students track tasks, 
+            earn rewards, and build great habits.
+          </p>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="container max-w-6xl mx-auto px-4 py-6">
-        <div className="lg:grid lg:grid-cols-5 lg:gap-6">
-          {/* Tasks Panel */}
-          <div
-            className={`lg:col-span-3 ${
-              activeView === 'tasks' ? 'block' : 'hidden lg:block'
-            }`}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-xl">
-                  {role === 'student'
-                    ? 'My Tasks'
-                    : role === 'parent'
-                    ? "Your Child's Tasks"
-                    : 'Student Tasks'}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {incompleteTasks === 0
-                    ? 'All done! Great job! 🎉'
-                    : `${incompleteTasks} task${incompleteTasks !== 1 ? 's' : ''} to complete`}
-                </p>
+        {/* Portal Cards */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          {portals.map((portal) => (
+            <Link
+              key={portal.role}
+              to={portal.href}
+              className="group bg-card rounded-2xl p-6 shadow-soft border border-border/50 hover:shadow-soft-lg hover:-translate-y-1 transition-all duration-300"
+            >
+              <div className={`w-14 h-14 ${portal.color} rounded-2xl flex items-center justify-center mb-4`}>
+                <portal.icon className="w-7 h-7 text-primary-foreground" />
               </div>
-            </div>
-            <TaskList tasks={tasks} onToggleComplete={handleToggleComplete} />
-          </div>
+              <h3 className="font-bold text-xl mb-2">{portal.title}</h3>
+              <p className="text-muted-foreground text-sm mb-4">{portal.description}</p>
+              <div className="flex items-center text-primary font-medium text-sm group-hover:gap-2 transition-all">
+                Get started
+                <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+          ))}
+        </div>
 
-          {/* Chat Panel */}
-          <div
-            className={`lg:col-span-2 ${
-              activeView === 'chat' ? 'block' : 'hidden lg:block'
-            }`}
-          >
-            <div className="lg:sticky lg:top-[90px] h-[calc(100vh-180px)] lg:h-[calc(100vh-120px)]">
-              <ChatBot
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                isTyping={isTyping}
-              />
+        {/* Features */}
+        <div className="mt-20 text-center">
+          <h3 className="font-bold text-2xl mb-8">Why Focus Flow?</h3>
+          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div>
+              <div className="text-4xl mb-3">🎯</div>
+              <h4 className="font-semibold mb-2">Simple & Calm</h4>
+              <p className="text-sm text-muted-foreground">
+                Minimalist design that won't overwhelm or distract
+              </p>
+            </div>
+            <div>
+              <div className="text-4xl mb-3">🏆</div>
+              <h4 className="font-semibold mb-2">Gamified</h4>
+              <p className="text-sm text-muted-foreground">
+                Earn points, badges, and maintain streaks
+              </p>
+            </div>
+            <div>
+              <div className="text-4xl mb-3">👥</div>
+              <h4 className="font-semibold mb-2">Connected</h4>
+              <p className="text-sm text-muted-foreground">
+                Parents and teachers stay in the loop
+              </p>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="container max-w-6xl mx-auto px-4 py-8 mt-12 border-t border-border/50">
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Sparkles className="w-4 h-4" />
+          Focus Flow — Helping students succeed
+        </div>
+      </footer>
     </div>
   );
 };

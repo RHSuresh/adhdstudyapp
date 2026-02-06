@@ -14,16 +14,258 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      badges: {
+        Row: {
+          description: string
+          icon: string
+          id: string
+          name: string
+          points_required: number
+        }
+        Insert: {
+          description: string
+          icon: string
+          id?: string
+          name: string
+          points_required?: number
+        }
+        Update: {
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+          points_required?: number
+        }
+        Relationships: []
+      }
+      parent_student_links: {
+        Row: {
+          created_at: string
+          id: string
+          parent_id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parent_id: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parent_id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      student_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_stats: {
+        Row: {
+          created_at: string
+          id: string
+          last_completed_date: string | null
+          points: number
+          streak_days: number
+          tasks_completed: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_completed_date?: string | null
+          points?: number
+          streak_days?: number
+          tasks_completed?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_completed_date?: string | null
+          points?: number
+          streak_days?: number
+          tasks_completed?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          assigned_by: string
+          category: string
+          completed: boolean
+          completed_at: string | null
+          completion_approved: boolean
+          completion_requested: boolean
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          points_awarded: number
+          priority: string
+          student_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assigned_by: string
+          category?: string
+          completed?: boolean
+          completed_at?: string | null
+          completion_approved?: boolean
+          completion_requested?: boolean
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          points_awarded?: number
+          priority?: string
+          student_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assigned_by?: string
+          category?: string
+          completed?: boolean
+          completed_at?: string | null
+          completion_approved?: boolean
+          completion_requested?: boolean
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          points_awarded?: number
+          priority?: string
+          student_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      teacher_student_links: {
+        Row: {
+          created_at: string
+          id: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "student" | "parent" | "teacher"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +392,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["student", "parent", "teacher"],
+    },
   },
 } as const

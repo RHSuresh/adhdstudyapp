@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar } from 'lucide-react';
 
 interface Child {
@@ -145,6 +146,7 @@ export default function ParentDashboard() {
               </div>
             </div>
 
+            <RoleSwitcher />
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="w-5 h-5" />
             </Button>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { RoleSwitcher } from '@/components/RoleSwitcher';
 
 interface Student {
   id: string;
@@ -364,6 +365,7 @@ export default function TeacherDashboard() {
                 </DialogContent>
               </Dialog>
 
+              <RoleSwitcher />
               <Button variant="ghost" size="icon" onClick={signOut}>
                 <LogOut className="w-5 h-5" />
               </Button>

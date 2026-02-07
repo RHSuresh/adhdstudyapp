@@ -6,6 +6,7 @@ import { TaskList } from '@/components/TaskList';
 import { ChatBot } from '@/components/ChatBot';
 import { DancingOwl } from '@/components/DancingOwl';
 import { GamificationPanel } from '@/components/GamificationPanel';
+import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { generateBotResponse } from '@/lib/chat-helpers';
 import { Sparkles, LogOut, MessageCircle, ListTodo, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -153,6 +154,7 @@ export default function StudentDashboard() {
               </div>
             </div>
 
+            <RoleSwitcher />
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="w-5 h-5" />
             </Button>

@@ -4,7 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, Users, School, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Users, School, Eye, EyeOff } from 'lucide-react';
+import webquityLogo from '@/assets/webquity-logo.png';
 import { toast } from 'sonner';
 
 type AppRole = 'student' | 'parent' | 'teacher';
@@ -81,8 +82,7 @@ export function AuthPage({ role }: AuthPageProps) {
         to="/" 
         className="absolute top-4 left-4 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
       >
-        <Sparkles className="w-5 h-5" />
-        <span className="font-semibold">Focus Flow</span>
+        <img src={webquityLogo} alt="Webquity" className="h-8" />
       </Link>
 
       <div className="w-full max-w-md">

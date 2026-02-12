@@ -35,7 +35,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="container max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3">
           <img src={webquityLogo} alt="Webquity" className="h-28" />
         </div>
       </header>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Sparkles, GraduationCap, Users, School, ArrowRight } from 'lucide-react';
+import { GraduationCap, Users, School, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import webquityLogo from '@/assets/webquity-logo.png';
 
 const Index = () => {
   const portals = [
@@ -35,10 +36,7 @@ const Index = () => {
       {/* Header */}
       <header className="container max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <h1 className="font-bold text-xl">Focus Flow</h1>
+          <img src={webquityLogo} alt="Webquity" className="h-10" />
         </div>
       </header>
 
@@ -46,7 +44,6 @@ const Index = () => {
       <main className="container max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent rounded-full text-sm font-medium text-accent-foreground mb-6">
-            <Sparkles className="w-4 h-4" />
             Built for students with ADHD
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
@@ -82,7 +79,7 @@ const Index = () => {
 
         {/* Features */}
         <div className="mt-20 text-center">
-          <h3 className="font-bold text-2xl mb-8">Why Focus Flow?</h3>
+          <h3 className="font-bold text-2xl mb-8">Why Webquity?</h3>
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div>
               <div className="text-4xl mb-3">🎯</div>
@@ -112,8 +109,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="container max-w-6xl mx-auto px-4 py-8 mt-12 border-t border-border/50">
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Sparkles className="w-4 h-4" />
-          Focus Flow — Helping students succeed
+          Webquity — Helping students succeed
         </div>
       </footer>
     </div>

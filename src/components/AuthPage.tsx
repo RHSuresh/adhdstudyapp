@@ -82,7 +82,7 @@ export function AuthPage({ role }: AuthPageProps) {
         to="/" 
         className="absolute top-4 left-4 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
       >
-        <img src={webquityLogo} alt="Webquity" className="h-12" />
+        <img src={webquityLogo} alt="Webquity" className="h-24" />
       </Link>
 
       <div className="w-full max-w-md">

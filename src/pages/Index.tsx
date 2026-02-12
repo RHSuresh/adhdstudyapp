@@ -36,7 +36,7 @@ const Index = () => {
       {/* Header */}
       <header className="container max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center gap-3">
-          <img src={webquityLogo} alt="Webquity" className="h-14" />
+          <img src={webquityLogo} alt="Webquity" className="h-28" />
         </div>
       </header>
 

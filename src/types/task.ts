@@ -2,7 +2,7 @@ export type UserRole = 'student' | 'parent' | 'teacher';
 
 export type TaskPriority = 'low' | 'medium' | 'high';
 
-export type TaskCategory = 'homework' | 'reading' | 'project' | 'study' | 'other';
+export type TaskCategory = 'homework' | 'reading' | 'project' | 'practice' | 'other';
 
 export interface Task {
   id: string;

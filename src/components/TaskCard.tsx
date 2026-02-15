@@ -13,7 +13,7 @@ const categoryIcons: Record<TaskCategory, React.ReactNode> = {
   homework: <Pencil className="w-4 h-4" />,
   reading: <BookOpen className="w-4 h-4" />,
   project: <FolderOpen className="w-4 h-4" />,
-  study: <Star className="w-4 h-4" />,
+  practice: <Star className="w-4 h-4" />,
   other: <MoreHorizontal className="w-4 h-4" />,
 };
 
@@ -21,7 +21,7 @@ const categoryLabels: Record<TaskCategory, string> = {
   homework: 'Homework',
   reading: 'Reading',
   project: 'Project',
-  study: 'Study',
+  practice: 'Practice',
   other: 'Other',
 };
 

@@ -7,8 +7,9 @@ import { ChatBot } from '@/components/ChatBot';
 import { DancingOwl } from '@/components/DancingOwl';
 import { GamificationPanel } from '@/components/GamificationPanel';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
+import { PomodoroTimer } from '@/components/PomodoroTimer';
 import { generateBotResponse } from '@/lib/chat-helpers';
-import { Sparkles, LogOut, MessageCircle, ListTodo, Trophy } from 'lucide-react';
+import { Sparkles, LogOut, MessageCircle, ListTodo, Trophy, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatMessage } from '@/types/task';
 
@@ -31,7 +32,7 @@ export default function StudentDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards'>('tasks');
+  const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards' | 'timer'>('tasks');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -103,7 +104,7 @@ export default function StudentDashboard() {
       completed: t.completed || t.completion_approved,
       dueDate: t.due_date ? new Date(t.due_date) : undefined,
       priority: t.priority as 'low' | 'medium' | 'high',
-      category: t.category as 'homework' | 'reading' | 'project' | 'study' | 'other',
+      category: t.category as 'homework' | 'reading' | 'project' | 'practice' | 'other',
       createdBy: 'teacher' as const,
       createdAt: new Date(),
     }));
@@ -168,6 +169,7 @@ export default function StudentDashboard() {
           <div className="flex items-center gap-1 p-1 bg-secondary rounded-full">
             {[
               { id: 'tasks', icon: ListTodo, label: 'Tasks', count: incompleteTasks },
+              { id: 'timer', icon: Timer, label: 'Timer' },
               { id: 'chat', icon: MessageCircle, label: 'Chat' },
               { id: 'rewards', icon: Trophy, label: 'Rewards' },
             ].map((item) => (
@@ -298,9 +300,14 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Rewards Panel */}
-          <div className={`lg:col-span-3 ${activeView === 'rewards' ? 'block' : 'hidden lg:block'}`}>
-            <GamificationPanel stats={studentStats} />
+          {/* Timer Panel */}
+          <div className={`lg:col-span-3 ${activeView === 'timer' ? 'block' : 'hidden lg:block'} order-first lg:order-none`}>
+            <div className="space-y-6">
+              <PomodoroTimer />
+              <div className={`${activeView === 'rewards' ? 'block' : 'hidden lg:block'}`}>
+                <GamificationPanel stats={studentStats} />
+              </div>
+            </div>
           </div>
         </div>
       </main>

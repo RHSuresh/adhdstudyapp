@@ -51,7 +51,7 @@ const Index = () => {
             <span className="text-primary">one task at a time</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            A calm, distraction-free study app that helps students track tasks, 
+            A calm, distraction-free learning app that helps students track tasks, 
             earn rewards, and build great habits.
           </p>
         </div>

@@ -312,7 +312,7 @@ export default function TeacherDashboard() {
                             <SelectItem value="homework">Homework</SelectItem>
                             <SelectItem value="reading">Reading</SelectItem>
                             <SelectItem value="project">Project</SelectItem>
-                            <SelectItem value="study">Study</SelectItem>
+                            <SelectItem value="practice">Practice</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>

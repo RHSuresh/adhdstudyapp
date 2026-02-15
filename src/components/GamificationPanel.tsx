@@ -24,7 +24,7 @@ export function GamificationPanel({ stats }: GamificationPanelProps) {
     { name: 'First Steps', icon: '🌟', earned: completed >= 1, description: 'Complete your first task' },
     { name: 'Task Master', icon: '🏆', earned: completed >= 10, description: 'Complete 10 tasks' },
     { name: 'Super Student', icon: '🎓', earned: completed >= 25, description: 'Complete 25 tasks' },
-    { name: 'Study Champion', icon: '🔥', earned: streak >= 7, description: '7-day streak' },
+    { name: 'Practice Champion', icon: '🔥', earned: streak >= 7, description: '7-day streak' },
     { name: 'Focus Legend', icon: '👑', earned: points >= 1000, description: 'Reach 1000 points' },
   ];
 

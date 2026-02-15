@@ -46,7 +46,7 @@ export function ChatBot({ messages, onSendMessage, isTyping = false }: ChatBotPr
           <Sparkles className="w-5 h-5 text-primary-foreground" />
         </div>
         <div>
-          <h3 className="font-bold text-base">Study Buddy</h3>
+          <h3 className="font-bold text-base">Focus Buddy</h3>
           <p className="text-xs text-muted-foreground">Here to help you stay focused!</p>
         </div>
       </div>
@@ -60,7 +60,7 @@ export function ChatBot({ messages, onSendMessage, isTyping = false }: ChatBotPr
             </div>
             <h4 className="font-semibold mb-2">Hi there! 👋</h4>
             <p className="text-sm text-muted-foreground max-w-[200px] mx-auto">
-              I'm your Study Buddy! Ask me to add tasks, set reminders, or help you stay on track.
+              I'm your Focus Buddy! Ask me to add tasks, set reminders, or help you stay on track.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 justify-center">
               {['Add a task', 'What\'s due today?', 'Help me focus'].map((suggestion) => (

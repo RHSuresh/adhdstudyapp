@@ -59,7 +59,7 @@ export function generateBotResponse(userMessage: string, tasks: Task[]): string 
   const defaultResponses = [
     "I'm here to help! You can ask me to:\n• Add a new task\n• Check what's due today\n• Get focus tips\n• Set reminders",
     "Great question! Let me know if you want to add tasks, check your schedule, or get some focus tips! 😊",
-    "I'm your study buddy! Ask me about your tasks, or let me help you stay focused! 📚",
+    "I'm your focus buddy! Ask me about your tasks, or let me help you stay focused! 📚",
   ];
 
   return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
@@ -95,7 +95,7 @@ export function generateSampleTasks(): Task[] {
       title: 'Practice Spelling Words',
       completed: true,
       priority: 'low',
-      category: 'study',
+      category: 'practice',
       createdBy: 'parent',
       createdAt: new Date(Date.now() - 259200000),
     },

@@ -100,11 +100,24 @@ export default function TeacherDashboard() {
   const handleLinkStudent = async () => {
     if (!studentEmail.trim() || !user) return;
 
-    // Find student by email in auth (we can't directly, so we'll add by email)
-    // For now, we need to look up by the profile or have them share their ID
-    toast.info('Student linking requires the student email. They will need to accept the link.');
-    setIsLinkingStudent(false);
-    setStudentEmail('');
+    try {
+      const res = await supabase.functions.invoke('link-student', {
+        body: { email: studentEmail.trim() },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to link student');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(res.data.message || 'Student linked!');
+        setIsLinkingStudent(false);
+        setStudentEmail('');
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
   };
 
   const handleCreateTask = async () => {
@@ -249,6 +262,10 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setIsLinkingStudent(true)}>
+                <Users className="w-4 h-4" />
+                Link Student
+              </Button>
               <Dialog open={isAddingTask} onOpenChange={setIsAddingTask}>
                 <DialogTrigger asChild>
                   <Button className="gap-2">
@@ -525,10 +542,40 @@ export default function TeacherDashboard() {
             <Users className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="font-semibold text-lg mb-2">No Students Linked</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              Students need to sign up first, then you can link them to your class.
+              Link a student by their email to start assigning tasks.
             </p>
+            <Button onClick={() => setIsLinkingStudent(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Link Student
+            </Button>
           </div>
         )}
+
+        {/* Link Student Dialog */}
+        <Dialog open={isLinkingStudent} onOpenChange={setIsLinkingStudent}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Link a Student</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Student Email</Label>
+                <Input
+                  type="email"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="student@example.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The student must already have an account (created by a parent).
+                </p>
+              </div>
+              <Button onClick={handleLinkStudent} className="w-full">
+                Link Student
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

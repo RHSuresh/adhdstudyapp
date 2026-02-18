@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
-import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar } from 'lucide-react';
+import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Child {
   id: string;
@@ -37,6 +41,46 @@ export default function ParentDashboard() {
   const [childStats, setChildStats] = useState<ChildStats | null>(null);
   const [childTasks, setChildTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [addingLoading, setAddingLoading] = useState(false);
+  const [newStudent, setNewStudent] = useState({ fullName: '', email: '', password: '' });
+
+  const handleAddStudent = async () => {
+    if (!newStudent.fullName || !newStudent.email || !newStudent.password) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    if (newStudent.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setAddingLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('create-student', {
+        body: {
+          fullName: newStudent.fullName,
+          email: newStudent.email,
+          password: newStudent.password,
+        },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to create student');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(`Student account created for ${newStudent.fullName}!`);
+        setIsAddingStudent(false);
+        setNewStudent({ fullName: '', email: '', password: '' });
+        fetchChildren();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
+    setAddingLoading(false);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -146,10 +190,57 @@ export default function ParentDashboard() {
               </div>
             </div>
 
-            <RoleSwitcher />
-            <Button variant="ghost" size="icon" onClick={signOut}>
-              <LogOut className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Dialog open={isAddingStudent} onOpenChange={setIsAddingStudent}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Add Student
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add a Student</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Full Name</Label>
+                      <Input
+                        value={newStudent.fullName}
+                        onChange={(e) => setNewStudent({ ...newStudent, fullName: e.target.value })}
+                        placeholder="e.g., Jane Doe"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={newStudent.email}
+                        onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                        placeholder="student@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={newStudent.password}
+                        onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
+                        placeholder="At least 6 characters"
+                      />
+                    </div>
+                    <Button onClick={handleAddStudent} className="w-full" disabled={addingLoading}>
+                      {addingLoading ? 'Creating...' : 'Create Student Account'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <RoleSwitcher />
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -158,12 +249,9 @@ export default function ParentDashboard() {
         {children.length === 0 ? (
           <div className="bg-card rounded-2xl p-8 shadow-soft border border-border/50 text-center">
             <Users className="w-16 h-16 text-success mx-auto mb-4" />
-            <h2 className="font-bold text-xl mb-2">No Children Linked</h2>
+            <h2 className="font-bold text-xl mb-2">No Students Yet</h2>
             <p className="text-muted-foreground mb-4">
-              Link your child's account to monitor their progress.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Your child needs to sign up first as a student, then you can link accounts.
+              Click "Add Student" to create a student account and start tracking their progress.
             </p>
           </div>
         ) : (

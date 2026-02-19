@@ -69,7 +69,11 @@ export default function ParentDashboard() {
       if (res.error) {
         toast.error(res.error.message || 'Failed to create student');
       } else if (res.data?.error) {
-        toast.error(res.data.error);
+        if (res.data.error.includes('already been registered')) {
+          toast.info('This email is already registered. The student may already have an account.');
+        } else {
+          toast.error(res.data.error);
+        }
       } else {
         toast.success(`Student account created for ${newStudent.fullName}!`);
         setIsAddingStudent(false);

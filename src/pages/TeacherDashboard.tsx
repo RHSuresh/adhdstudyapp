@@ -108,13 +108,17 @@ export default function TeacherDashboard() {
       if (res.error) {
         toast.error(res.error.message || 'Failed to link student');
       } else if (res.data?.error) {
-        toast.error(res.data.error);
+        if (res.data.error === 'Student is already linked to you') {
+          toast.info('This student is already linked to your account.');
+        } else {
+          toast.error(res.data.error);
+        }
       } else {
         toast.success(res.data.message || 'Student linked!');
-        setIsLinkingStudent(false);
         setStudentEmail('');
         fetchData();
       }
+      setIsLinkingStudent(false);
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
     }

@@ -8,7 +8,6 @@ import { DancingOwl } from '@/components/DancingOwl';
 import { GamificationPanel } from '@/components/GamificationPanel';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
-import { generateBotResponse } from '@/lib/chat-helpers';
 import { Sparkles, LogOut, MessageCircle, ListTodo, Trophy, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatMessage } from '@/types/task';
@@ -86,7 +85,7 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string) => {
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content,
@@ -96,29 +95,35 @@ export default function StudentDashboard() {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
-    // Convert tasks to the format expected by generateBotResponse
-    const formattedTasks = tasks.map(t => ({
-      id: t.id,
-      title: t.title,
-      description: t.description || undefined,
-      completed: t.completed || t.completion_approved,
-      dueDate: t.due_date ? new Date(t.due_date) : undefined,
-      priority: t.priority as 'low' | 'medium' | 'high',
-      category: t.category as 'homework' | 'reading' | 'project' | 'practice' | 'other',
-      createdBy: 'teacher' as const,
-      createdAt: new Date(),
-    }));
+    try {
+      // Build history from existing messages for context
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
 
-    setTimeout(() => {
+      const { data, error } = await supabase.functions.invoke('focus-buddy-chat', {
+        body: { message: content, history },
+      });
+
+      if (error) throw error;
+
       const botResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: generateBotResponse(content, formattedTasks),
+        content: data?.reply || data?.error || "Sorry, something went wrong!",
         role: 'assistant',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, botResponse]);
+    } catch (err) {
+      console.error('Chat error:', err);
+      const botResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: "Oops! I couldn't connect right now. Try again in a moment! 🔄",
+        role: 'assistant',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, botResponse]);
+    } finally {
       setIsTyping(false);
-    }, 800 + Math.random() * 700);
+    }
   };
 
   const incompleteTasks = tasks.filter(t => !t.completion_approved).length;

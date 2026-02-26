@@ -1,1 +1,10 @@
 project_id = "ikicpwqgzjoouqqpgrqf"
+
+[functions.create-student]
+verify_jwt = false
+
+[functions.link-student]
+verify_jwt = false
+
+[functions.focus-buddy-chat]
+verify_jwt = false

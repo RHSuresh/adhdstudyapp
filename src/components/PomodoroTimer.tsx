@@ -26,11 +26,19 @@ const phaseLabels: Record<TimerPhase, string> = {
   'long-break': '🌟 Long Break',
 };
 
-interface PomodoroTimerProps {
-  externalSettings?: Partial<TimerSettings> | null;
+interface TimerAction {
+  type: 'set_timer' | 'timer_start' | 'timer_pause' | 'timer_reset';
+  focusMinutes?: number;
+  shortBreakMinutes?: number;
+  longBreakMinutes?: number;
 }
 
-export function PomodoroTimer({ externalSettings }: PomodoroTimerProps = {}) {
+interface PomodoroTimerProps {
+  externalActions?: TimerAction[];
+  onActionsProcessed?: () => void;
+}
+
+export function PomodoroTimer({ externalActions, onActionsProcessed }: PomodoroTimerProps = {}) {
   const [settings, setSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [phase, setPhase] = useState<TimerPhase>('focus');
@@ -39,16 +47,41 @@ export function PomodoroTimer({ externalSettings }: PomodoroTimerProps = {}) {
   const [completedSessions, setCompletedSessions] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Handle external settings from chatbot
+  // Handle external actions from chatbot
   useEffect(() => {
-    if (externalSettings) {
-      const newSettings = { ...settings, ...externalSettings };
-      setSettings(newSettings);
-      setIsRunning(false);
-      setPhase('focus');
-      setSecondsLeft(newSettings.focusMinutes * 60);
+    if (externalActions && externalActions.length > 0) {
+      for (const action of externalActions) {
+        switch (action.type) {
+          case 'set_timer': {
+            const newSettings = {
+              ...settings,
+              ...(action.focusMinutes !== undefined && { focusMinutes: action.focusMinutes }),
+              ...(action.shortBreakMinutes !== undefined && { shortBreakMinutes: action.shortBreakMinutes }),
+              ...(action.longBreakMinutes !== undefined && { longBreakMinutes: action.longBreakMinutes }),
+            };
+            setSettings(newSettings);
+            setPhase('focus');
+            setSecondsLeft(newSettings.focusMinutes * 60);
+            setIsRunning(false);
+            break;
+          }
+          case 'timer_start':
+            setIsRunning(true);
+            break;
+          case 'timer_pause':
+            setIsRunning(false);
+            break;
+          case 'timer_reset':
+            setIsRunning(false);
+            setPhase('focus');
+            setSecondsLeft(settings.focusMinutes * 60);
+            setCompletedSessions(0);
+            break;
+        }
+      }
+      onActionsProcessed?.();
     }
-  }, [externalSettings]);
+  }, [externalActions]);
 
   const totalSeconds = phase === 'focus'
     ? settings.focusMinutes * 60

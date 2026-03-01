@@ -26,7 +26,11 @@ const phaseLabels: Record<TimerPhase, string> = {
   'long-break': '🌟 Long Break',
 };
 
-export function PomodoroTimer() {
+interface PomodoroTimerProps {
+  externalSettings?: Partial<TimerSettings> | null;
+}
+
+export function PomodoroTimer({ externalSettings }: PomodoroTimerProps = {}) {
   const [settings, setSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [phase, setPhase] = useState<TimerPhase>('focus');
@@ -34,6 +38,17 @@ export function PomodoroTimer() {
   const [isRunning, setIsRunning] = useState(false);
   const [completedSessions, setCompletedSessions] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Handle external settings from chatbot
+  useEffect(() => {
+    if (externalSettings) {
+      const newSettings = { ...settings, ...externalSettings };
+      setSettings(newSettings);
+      setIsRunning(false);
+      setPhase('focus');
+      setSecondsLeft(newSettings.focusMinutes * 60);
+    }
+  }, [externalSettings]);
 
   const totalSeconds = phase === 'focus'
     ? settings.focusMinutes * 60

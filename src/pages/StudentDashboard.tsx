@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { ChatMessage } from '@/types/task';
 
 interface TimerAction {
-  type: 'set_timer';
-  focusMinutes: number;
-  shortBreakMinutes: number;
-  longBreakMinutes: number;
+  type: 'set_timer' | 'timer_start' | 'timer_pause' | 'timer_reset';
+  focusMinutes?: number;
+  shortBreakMinutes?: number;
+  longBreakMinutes?: number;
 }
 
 interface Task {
@@ -40,7 +40,7 @@ export default function StudentDashboard() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards' | 'timer'>('tasks');
   const [loading, setLoading] = useState(true);
-  const [timerSettings, setTimerSettings] = useState<TimerAction | null>(null);
+  const [timerActions, setTimerActions] = useState<TimerAction[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -121,9 +121,9 @@ export default function StudentDashboard() {
       };
       setMessages(prev => [...prev, botResponse]);
 
-      // Handle timer action from chatbot
-      if (data?.action?.type === 'set_timer') {
-        setTimerSettings(data.action);
+      // Handle timer actions from chatbot
+      if (data?.actions && Array.isArray(data.actions)) {
+        setTimerActions(data.actions);
         setActiveView('timer');
       }
     } catch (err) {
@@ -322,7 +322,7 @@ export default function StudentDashboard() {
           {/* Timer Panel */}
           <div className={`lg:col-span-3 ${activeView === 'timer' ? 'block' : 'hidden lg:block'} order-first lg:order-none`}>
             <div className="space-y-6">
-              <PomodoroTimer externalSettings={timerSettings} />
+              <PomodoroTimer externalActions={timerActions} onActionsProcessed={() => setTimerActions([])} />
               <div className={`${activeView === 'rewards' ? 'block' : 'hidden lg:block'}`}>
                 <GamificationPanel stats={studentStats} />
               </div>

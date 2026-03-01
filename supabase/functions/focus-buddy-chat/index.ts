@@ -25,7 +25,19 @@ Rules:
 - Help with task management, study tips, focus strategies, and motivation.
 - NEVER discuss violence, drugs, alcohol, sexual content, or anything inappropriate for children.
 - If a user asks something off-topic or inappropriate, gently redirect them to schoolwork.
-- You can help brainstorm ideas for school projects but never write essays or do homework for them.`;
+- You can help brainstorm ideas for school projects but never write essays or do homework for them.
+
+TIMER COMMANDS:
+When the user asks you to set, change, or start a Pomodoro timer, you MUST include a special action tag in your response.
+Format: [TIMER:focus_minutes,short_break_minutes,long_break_minutes]
+- If the user only specifies focus time, use sensible defaults for breaks (e.g. 5 min short, 15 min long).
+- Examples:
+  - "Set a 30 minute timer" → include [TIMER:30,5,15] in your response
+  - "Set timer to 10 minutes focus and 3 minute breaks" → include [TIMER:10,3,15]
+  - "Set a 45 minute pomodoro" → include [TIMER:45,5,15]
+- Always include a friendly message along with the tag. The tag will be hidden from the user.
+- Only include the tag when the user explicitly asks to set/change timer values.
+- Focus must be 5-60 minutes, short break 1-15 minutes, long break 5-30 minutes. Clamp values to these ranges.`;
 
 const MODERATION_PROMPT = `You are a content safety classifier for a children's educational app. 
 Classify the following text as either SAFE or UNSAFE.
@@ -134,8 +146,22 @@ serve(async (req) => {
       );
     }
 
+    // Parse timer action from reply
+    const timerMatch = reply.match(/\[TIMER:(\d+),(\d+),(\d+)\]/);
+    let action = null;
+    let cleanReply = reply;
+    if (timerMatch) {
+      cleanReply = reply.replace(/\[TIMER:\d+,\d+,\d+\]/, '').trim();
+      action = {
+        type: 'set_timer',
+        focusMinutes: Math.max(5, Math.min(60, parseInt(timerMatch[1]))),
+        shortBreakMinutes: Math.max(1, Math.min(15, parseInt(timerMatch[2]))),
+        longBreakMinutes: Math.max(5, Math.min(30, parseInt(timerMatch[3]))),
+      };
+    }
+
     return new Response(
-      JSON.stringify({ reply }),
+      JSON.stringify({ reply: cleanReply, action }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

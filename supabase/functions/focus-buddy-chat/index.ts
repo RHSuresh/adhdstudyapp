@@ -29,14 +29,22 @@ Rules:
 
 TIMER COMMANDS:
 When the user asks you to set, change, or start a Pomodoro timer, you MUST include a special action tag in your response.
-Format: [TIMER:focus_minutes,short_break_minutes,long_break_minutes]
+Available tags:
+- [TIMER:focus_minutes,short_break_minutes,long_break_minutes] — Set timer values
+- [TIMER_START] — Start/resume the timer
+- [TIMER_PAUSE] — Pause the timer
+- [TIMER_RESET] — Reset the timer
+
+Rules:
 - If the user only specifies focus time, use sensible defaults for breaks (e.g. 5 min short, 15 min long).
 - Examples:
   - "Set a 30 minute timer" → include [TIMER:30,5,15] in your response
-  - "Set timer to 10 minutes focus and 3 minute breaks" → include [TIMER:10,3,15]
-  - "Set a 45 minute pomodoro" → include [TIMER:45,5,15]
-- Always include a friendly message along with the tag. The tag will be hidden from the user.
-- Only include the tag when the user explicitly asks to set/change timer values.
+  - "Start the timer" or "Go" or "Begin" → include [TIMER_START]
+  - "Pause" or "Stop the timer" → include [TIMER_PAUSE]
+  - "Reset the timer" → include [TIMER_RESET]
+  - "Set a 20 min timer and start it" → include [TIMER:20,5,15] AND [TIMER_START]
+- Always include a friendly message along with the tag. The tags will be hidden from the user.
+- Only include tags when the user explicitly asks for timer actions.
 - Focus must be 5-60 minutes, short break 1-15 minutes, long break 5-30 minutes. Clamp values to these ranges.`;
 
 const MODERATION_PROMPT = `You are a content safety classifier for a children's educational app. 
@@ -146,22 +154,35 @@ serve(async (req) => {
       );
     }
 
-    // Parse timer action from reply
-    const timerMatch = reply.match(/\[TIMER:(\d+),(\d+),(\d+)\]/);
-    let action = null;
+    // Parse timer actions from reply
+    const actions: Array<Record<string, unknown>> = [];
     let cleanReply = reply;
+
+    const timerMatch = cleanReply.match(/\[TIMER:(\d+),(\d+),(\d+)\]/);
     if (timerMatch) {
-      cleanReply = reply.replace(/\[TIMER:\d+,\d+,\d+\]/, '').trim();
-      action = {
+      cleanReply = cleanReply.replace(/\[TIMER:\d+,\d+,\d+\]/, '').trim();
+      actions.push({
         type: 'set_timer',
         focusMinutes: Math.max(5, Math.min(60, parseInt(timerMatch[1]))),
         shortBreakMinutes: Math.max(1, Math.min(15, parseInt(timerMatch[2]))),
         longBreakMinutes: Math.max(5, Math.min(30, parseInt(timerMatch[3]))),
-      };
+      });
+    }
+    if (cleanReply.includes('[TIMER_START]')) {
+      cleanReply = cleanReply.replace(/\[TIMER_START\]/g, '').trim();
+      actions.push({ type: 'timer_start' });
+    }
+    if (cleanReply.includes('[TIMER_PAUSE]')) {
+      cleanReply = cleanReply.replace(/\[TIMER_PAUSE\]/g, '').trim();
+      actions.push({ type: 'timer_pause' });
+    }
+    if (cleanReply.includes('[TIMER_RESET]')) {
+      cleanReply = cleanReply.replace(/\[TIMER_RESET\]/g, '').trim();
+      actions.push({ type: 'timer_reset' });
     }
 
     return new Response(
-      JSON.stringify({ reply: cleanReply, action }),
+      JSON.stringify({ reply: cleanReply, actions: actions.length > 0 ? actions : undefined }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

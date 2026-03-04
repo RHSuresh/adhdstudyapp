@@ -1,14 +1,22 @@
 -- ============================================
 -- DATA EXPORT FROM LOVABLE CLOUD
 -- ============================================
--- IMPORTANT: You must first create the two auth users in your new
--- Supabase project (Dashboard → Authentication → Users → Add User)
--- with these EXACT emails. Then update the UUIDs below to match
--- the new user IDs, OR use the Admin API to create users with
--- specific UUIDs.
+-- INSTRUCTIONS:
+-- 1. You should have already run the migrations SQL to create all tables,
+--    enums, functions, and RLS policies.
+-- 2. Create auth users in your Supabase project
+--    (Dashboard → Authentication → Users → Add User) for each email below.
+-- 3. Replace the UUIDs below with the new user IDs from your Supabase project.
+-- 4. Run this entire file in the SQL Editor. It is SAFE to re-run —
+--    all statements use ON CONFLICT DO NOTHING so nothing will break.
 --
--- User 1: rosuresh2@gmail.com  → UUID: b1a0ea5f-94fc-465c-8772-08e2ba156cd0
--- User 2: livathlete@gmail.com → UUID: 3dfc5617-774d-48e4-a646-78236528b87a
+-- User 1 (SUPER ADMIN / DEV): rosuresh2@gmail.com
+--   → Replace UUID: b1a0ea5f-94fc-465c-8772-08e2ba156cd0
+--   → Roles: student, parent, teacher (all three for dev purposes)
+--
+-- User 2 (STUDENT ONLY): livathlete@gmail.com
+--   → Replace UUID: 3dfc5617-774d-48e4-a646-78236528b87a
+--   → Role: student ONLY
 -- ============================================
 
 -- PROFILES
@@ -18,6 +26,8 @@ INSERT INTO public.profiles (id, user_id, full_name, avatar_url, created_at, upd
 ON CONFLICT DO NOTHING;
 
 -- USER ROLES
+-- rosuresh2 = super admin (all 3 roles for dev)
+-- livathlete = student ONLY
 INSERT INTO public.user_roles (id, user_id, role) VALUES
   ('df480aa6-6974-400a-8731-5c23639e549c', 'b1a0ea5f-94fc-465c-8772-08e2ba156cd0', 'student'),
   ('e895a468-4d29-45fb-bbb9-388bd67b06d5', 'b1a0ea5f-94fc-465c-8772-08e2ba156cd0', 'parent'),
@@ -58,6 +68,3 @@ INSERT INTO public.tasks (id, student_id, assigned_by, title, description, categ
   ('b45fdfbf-0437-4ecc-8873-33463d6d9185', '3dfc5617-774d-48e4-a646-78236528b87a', 'b1a0ea5f-94fc-465c-8772-08e2ba156cd0', 'test job', NULL, 'homework', 'medium', '2026-02-27 00:00:00+00', false, false, false, NULL, NULL, NULL, 10, '2026-02-26 17:43:43.548818+00', '2026-02-26 17:43:43.548818+00'),
   ('badb6082-6df4-4923-acac-0768be2ab761', '3dfc5617-774d-48e4-a646-78236528b87a', 'b1a0ea5f-94fc-465c-8772-08e2ba156cd0', 'do something', 'something', 'homework', 'medium', '2026-03-10 00:00:00+00', false, false, false, NULL, NULL, NULL, 100, '2026-03-01 21:26:29.296251+00', '2026-03-01 21:26:29.296251+00')
 ON CONFLICT DO NOTHING;
-
--- STUDENT BADGES (none earned yet)
--- No data to insert

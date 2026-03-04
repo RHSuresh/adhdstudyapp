@@ -12,6 +12,7 @@ import TeacherAuth from "./pages/auth/TeacherAuth";
 import StudentDashboard from "./pages/StudentDashboard";
 import ParentDashboard from "./pages/ParentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -31,9 +32,9 @@ const App = () => (
             <Route path="/auth/teacher" element={<TeacherAuth />} />
             
             {/* Dashboard routes */}
-            <Route path="/student" element={<StudentDashboard />} />
-            <Route path="/parent" element={<ParentDashboard />} />
-            <Route path="/teacher" element={<TeacherDashboard />} />
+            <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
+            <Route path="/parent" element={<ProtectedRoute requiredRole="parent"><ParentDashboard /></ProtectedRoute>} />
+            <Route path="/teacher" element={<ProtectedRoute requiredRole="teacher"><TeacherDashboard /></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

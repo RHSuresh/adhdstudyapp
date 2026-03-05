@@ -58,6 +58,32 @@ This project is built with:
 - TypeScript
 - React
 - shadcn-ui
+
+## Chatbot backend (optional)
+
+The frontend includes a `ChatBot` component that expects a running chat API.  A
+sample Flask implementation is provided in `server.py`:
+
+```python
+# run from project root
+python server.py
+```
+
+It listens on `http://localhost:5001/api/chat` and has CORS enabled, so the
+reactive development server can communicate with it directly.  The server uses
+`ollama` and `better-profanity` for generation and moderation; install its
+requirements with:
+
+```sh
+python -m venv venv
+source venv/bin/activate
+pip install flask flask-cors ollama better-profanity
+```
+
+During development the client URL can be overridden via an environment variable
+(i.e. `VITE_CHAT_API_URL`).  If you prefer to keep the existing Supabase
+function, simply point that variable at the function URL or leave it unset.
+
 - Tailwind CSS
 
 ## How can I deploy this project?

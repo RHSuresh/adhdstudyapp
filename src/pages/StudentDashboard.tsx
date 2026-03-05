@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { ChatMessage } from '@/types/task';
 
 interface TimerAction {
-  type: 'set_timer';
-  focusMinutes: number;
-  shortBreakMinutes: number;
-  longBreakMinutes: number;
+  type: 'set_timer' | 'timer_start' | 'timer_pause' | 'timer_reset';
+  focusMinutes?: number;
+  shortBreakMinutes?: number;
+  longBreakMinutes?: number;
 }
 
 interface Task {
@@ -40,7 +40,7 @@ export default function StudentDashboard() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards' | 'timer'>('tasks');
   const [loading, setLoading] = useState(true);
-  const [timerSettings, setTimerSettings] = useState<TimerAction | null>(null);
+  const [timerActions, setTimerActions] = useState<TimerAction[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -93,6 +93,76 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleCreateTask = async (title: string, dueDate?: string) => {
+    if (!user) return;
+
+    let parsedDueDate = null;
+    if (dueDate) {
+      try {
+        // Parse various date formats, e.g. "10/31/2077" -> Date
+        const date = new Date(dueDate);
+        if (!isNaN(date.getTime())) {
+          parsedDueDate = date.toISOString();
+        }
+      } catch (e) {
+        console.error('Invalid due date:', dueDate);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        student_id: user.id,
+        title,
+        description: null,
+        category: 'General',
+        priority: 'medium',
+        due_date: parsedDueDate,
+        completed: false,
+        completion_requested: false,
+        completion_approved: false,
+        points_awarded: 10, // default points
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating task:', error);
+    } else {
+      // Refetch tasks to include the new one
+      fetchTasks();
+    }
+  };
+
+  const handleCompleteTask = async (title: string) => {
+    if (!user) return;
+
+    // Find the task by title (assuming titles are unique for simplicity)
+    const task = tasks.find(t => t.title.toLowerCase() === title.toLowerCase());
+    if (!task) {
+      console.error('Task not found:', title);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({ completed: true, completed_at: new Date().toISOString() })
+      .eq('id', task.id);
+
+    if (error) {
+      console.error('Error completing task:', error);
+    } else {
+      // Update local state
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, completed: true } : t
+      ));
+    }
+  };
+
+  // endpoint can be configured via VITE_CHAT_API_URL, defaults to local flask server
+  const CHAT_API_URL =
+    import.meta.env.VITE_CHAT_API_URL || 'http://localhost:5001/api/chat';
+
   const handleSendMessage = async (content: string) => {
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -107,11 +177,15 @@ export default function StudentDashboard() {
       // Build history from existing messages for context
       const history = messages.map(m => ({ role: m.role, content: m.content }));
 
-      const { data, error } = await supabase.functions.invoke('focus-buddy-chat', {
-        body: { message: content, history },
+      // post to whichever backend is running (supabase functions or flask)
+      const response = await fetch(CHAT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content, history }),
+        // omit credentials; CORS allowed on flask server
       });
 
-      if (error) throw error;
+      const data = await response.json();
 
       const botResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -121,10 +195,25 @@ export default function StudentDashboard() {
       };
       setMessages(prev => [...prev, botResponse]);
 
-      // Handle timer action from chatbot
-      if (data?.action?.type === 'set_timer') {
-        setTimerSettings(data.action);
-        setActiveView('timer');
+      // Handle actions from chatbot
+      if (data?.actions && Array.isArray(data.actions)) {
+        for (const action of data.actions) {
+          if (action.type === 'create_task' && action.title) {
+            await handleCreateTask(action.title, action.due_date);
+          } else if (action.type === 'complete_task' && action.title) {
+            await handleCompleteTask(action.title);
+          }
+        }
+        const timerActions = data.actions.filter(a => 
+          ['set_timer', 'timer_start', 'timer_pause', 'timer_reset'].includes(a.type)
+        );
+        if (timerActions.length > 0) {
+          setTimerActions(timerActions);
+          setActiveView('timer');
+        }
+        if (data.actions.some(a => a.type === 'create_task' || a.type === 'complete_task')) {
+          setActiveView('tasks');
+        }
       }
     } catch (err) {
       console.error('Chat error:', err);
@@ -322,7 +411,7 @@ export default function StudentDashboard() {
           {/* Timer Panel */}
           <div className={`lg:col-span-3 ${activeView === 'timer' ? 'block' : 'hidden lg:block'} order-first lg:order-none`}>
             <div className="space-y-6">
-              <PomodoroTimer externalSettings={timerSettings} />
+              <PomodoroTimer externalActions={timerActions} onActionsProcessed={() => setTimerActions([])} />
               <div className={`${activeView === 'rewards' ? 'block' : 'hidden lg:block'}`}>
                 <GamificationPanel stats={studentStats} />
               </div>

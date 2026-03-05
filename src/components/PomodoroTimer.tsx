@@ -3,6 +3,7 @@ import { Play, Pause, RotateCcw, Settings, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import io from 'socket.io-client';
 
 type TimerPhase = 'focus' | 'short-break' | 'long-break';
 
@@ -46,6 +47,7 @@ export function PomodoroTimer({ externalActions, onActionsProcessed }: PomodoroT
   const [isRunning, setIsRunning] = useState(false);
   const [completedSessions, setCompletedSessions] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const socketRef = useRef(io(import.meta.env.VITE_CHAT_API_URL?.replace('/api/chat', '') || 'http://localhost:5001'));
 
   // Handle external actions from chatbot
   useEffect(() => {
@@ -82,6 +84,45 @@ export function PomodoroTimer({ externalActions, onActionsProcessed }: PomodoroT
       onActionsProcessed?.();
     }
   }, [externalActions]);
+
+  // Direct WebSocket connection for real-time timer control
+  useEffect(() => {
+    const socket = socketRef.current;
+    socket.on('timer_actions', (actions: TimerAction[]) => {
+      for (const action of actions) {
+        switch (action.type) {
+          case 'set_timer': {
+            const newSettings = {
+              ...settings,
+              ...(action.focusMinutes !== undefined && { focusMinutes: action.focusMinutes }),
+              ...(action.shortBreakMinutes !== undefined && { shortBreakMinutes: action.shortBreakMinutes }),
+              ...(action.longBreakMinutes !== undefined && { longBreakMinutes: action.longBreakMinutes }),
+            };
+            setSettings(newSettings);
+            setPhase('focus');
+            setSecondsLeft(newSettings.focusMinutes * 60);
+            setIsRunning(false);
+            break;
+          }
+          case 'timer_start':
+            setIsRunning(true);
+            break;
+          case 'timer_pause':
+            setIsRunning(false);
+            break;
+          case 'timer_reset':
+            setIsRunning(false);
+            setPhase('focus');
+            setSecondsLeft(settings.focusMinutes * 60);
+            setCompletedSessions(0);
+            break;
+        }
+      }
+    });
+    return () => {
+      socket.off('timer_actions');
+    };
+  }, [settings]);
 
   const totalSeconds = phase === 'focus'
     ? settings.focusMinutes * 60

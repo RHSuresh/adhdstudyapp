@@ -113,6 +113,7 @@ export default function StudentDashboard() {
       .from('tasks')
       .insert({
         student_id: user.id,
+        assigned_by: user.id,
         title,
         description: null,
         category: 'General',

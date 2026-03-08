@@ -64,7 +64,7 @@ export function AuthPage({ role }: AuthPageProps) {
           navigate(`/${role}`);
         }
       } else {
-        const { error } = await signUp(email, password, fullName, role);
+        const { error } = await signUp(email, password, fullName, role, role === 'parent' ? inviteCode : undefined);
         if (error) {
           toast.error(error.message);
         } else {

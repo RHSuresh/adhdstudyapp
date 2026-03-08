@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, role: AppRole) => {
+  const signUp = async (email: string, password: string, fullName: string, role: AppRole, inviteCode?: string) => {
     try {
       const redirectUrl = window.location.origin;
       
@@ -144,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             full_name: fullName,
             role: role,
+            invite_code: inviteCode || null,
           }
         }
       });

@@ -25,7 +25,7 @@ interface AuthContextType {
   role: AppRole | null;
   studentStats: StudentStats | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, role: AppRole, inviteCode?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshStats: () => Promise<void>;
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, role: AppRole) => {
+  const signUp = async (email: string, password: string, fullName: string, role: AppRole, inviteCode?: string) => {
     try {
       const redirectUrl = window.location.origin;
       
@@ -144,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             full_name: fullName,
             role: role,
+            invite_code: inviteCode || null,
           }
         }
       });
@@ -183,6 +184,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
           
           if (statsError) console.error('Stats creation error:', statsError);
+        }
+
+        // If parent with invite code, redeem it
+        if (role === 'parent' && inviteCode) {
+          const { data: codeData, error: codeError } = await supabase
+            .from('invite_codes')
+            .select('*')
+            .eq('code', inviteCode)
+            .is('used_by', null)
+            .gt('expires_at', new Date().toISOString())
+            .maybeSingle();
+
+          if (codeData) {
+            // Mark code as used
+            await supabase
+              .from('invite_codes')
+              .update({ used_by: data.user.id, used_at: new Date().toISOString() })
+              .eq('id', codeData.id);
+          } else if (codeError) {
+            console.error('Invite code error:', codeError);
+          }
         }
       }
 

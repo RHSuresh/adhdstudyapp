@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.focus-buddy-chat]
 verify_jwt = false
+
+[functions.generate-invite-code]
+verify_jwt = false

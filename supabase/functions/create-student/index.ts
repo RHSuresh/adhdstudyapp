@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -102,14 +102,50 @@ Deno.serve(async (req) => {
     });
     if (linkErr) console.error("Link error:", linkErr);
 
-    // Also link any teachers that are linked to the parent (for the super-admin flow)
-    // Check if caller also has teacher role, if so auto-link
-    const { data: teacherRole } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", caller.id).eq("role", "teacher").maybeSingle();
-    if (teacherRole) {
-      await supabaseAdmin.from("teacher_student_links").insert({
-        teacher_id: caller.id,
-        student_id: studentId,
-      });
+    // Auto-link to teacher via invite code
+    // Find the invite code that this parent redeemed
+    const { data: inviteCode } = await supabaseAdmin
+      .from("invite_codes")
+      .select("teacher_id, class_id")
+      .eq("used_by", caller.id)
+      .order("used_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (inviteCode) {
+      // Link teacher to student
+      const { error: teacherLinkErr } = await supabaseAdmin
+        .from("teacher_student_links")
+        .insert({
+          teacher_id: inviteCode.teacher_id,
+          student_id: studentId,
+        });
+      if (teacherLinkErr) console.error("Teacher link error:", teacherLinkErr);
+
+      // Add student to class if applicable
+      if (inviteCode.class_id) {
+        const { error: classErr } = await supabaseAdmin
+          .from("class_students")
+          .insert({
+            class_id: inviteCode.class_id,
+            student_id: studentId,
+          });
+        if (classErr) console.error("Class link error:", classErr);
+      }
+    } else {
+      // Fallback: check if caller also has teacher role
+      const { data: teacherRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id)
+        .eq("role", "teacher")
+        .maybeSingle();
+      if (teacherRole) {
+        await supabaseAdmin.from("teacher_student_links").insert({
+          teacher_id: caller.id,
+          student_id: studentId,
+        });
+      }
     }
 
     return new Response(JSON.stringify({ 

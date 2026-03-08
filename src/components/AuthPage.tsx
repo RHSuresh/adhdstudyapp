@@ -114,6 +114,23 @@ export function AuthPage({ role }: AuthPageProps) {
               </div>
             )}
 
+            {!isLogin && role === 'parent' && (
+              <div className="space-y-2">
+                <Label htmlFor="inviteCode">Invite Code</Label>
+                <Input
+                  id="inviteCode"
+                  type="text"
+                  placeholder="Enter the code from your child's teacher"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  required={!isLogin && role === 'parent'}
+                  className="rounded-xl uppercase tracking-widest font-mono"
+                  maxLength={6}
+                />
+                <p className="text-xs text-muted-foreground">Ask your child's teacher for an invite code</p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

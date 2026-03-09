@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function generateCode() {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return (bytes[0] % 1_000_000).toString().padStart(6, "0");
+}
+
 function decodeJwtSubject(authHeader: string): string | null {
   const token = authHeader.replace("Bearer ", "").trim();
   const parts = token.split(".");
@@ -44,10 +50,9 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Verify caller is a teacher
     const { data: roleData, error: roleError } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -63,79 +68,81 @@ Deno.serve(async (req) => {
     }
 
     if (!roleData) {
-      return new Response(JSON.stringify({ error: "Only teachers can link students" }), {
+      return new Response(JSON.stringify({ error: "Only teachers can regenerate classroom codes" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { email } = await req.json();
-    if (!email) {
-      return new Response(JSON.stringify({ error: "Student email is required" }), {
+    const { classroomId } = await req.json();
+    if (!classroomId) {
+      return new Response(JSON.stringify({ error: "classroomId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Find user by email
-    const { data: users, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
-    if (listErr) {
-      return new Response(JSON.stringify({ error: "Failed to look up user" }), {
+    const { data: existingClassroom, error: existingError } = await supabaseAdmin
+      .from("classrooms")
+      .select("id")
+      .eq("id", classroomId)
+      .eq("teacher_id", callerId)
+      .maybeSingle();
+
+    if (existingError) {
+      return new Response(JSON.stringify({ error: existingError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const student = users.users.find(u => u.email === email);
-    if (!student) {
-      return new Response(JSON.stringify({ error: "No account found with that email" }), {
+    if (!existingClassroom) {
+      return new Response(JSON.stringify({ error: "Classroom not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify they're a student
-    const { data: studentRole } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", student.id).eq("role", "student").maybeSingle();
-    if (!studentRole) {
-      return new Response(JSON.stringify({ error: "That account is not a student" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let newCode: string | null = null;
+    for (let i = 0; i < 20; i++) {
+      const candidate = generateCode();
+      const { error } = await supabaseAdmin
+        .from("classrooms")
+        .update({ code: candidate })
+        .eq("id", classroomId)
+        .eq("teacher_id", callerId);
+
+      if (!error) {
+        newCode = candidate;
+        break;
+      }
+
+      if (!error.message?.toLowerCase().includes("duplicate") && error.code !== "23505") {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    // Check if already linked
-    const { data: existing } = await supabaseAdmin.from("teacher_student_links").select("id").eq("teacher_id", callerId).eq("student_id", student.id).maybeSingle();
-    if (existing) {
-      return new Response(JSON.stringify({ error: "Student is already linked to you" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Create link
-    const { error: linkErr } = await supabaseAdmin.from("teacher_student_links").insert({
-      teacher_id: callerId,
-      student_id: student.id,
-    });
-
-    if (linkErr) {
-      return new Response(JSON.stringify({ error: linkErr.message }), {
+    if (!newCode) {
+      return new Response(JSON.stringify({ error: "Unable to generate a unique classroom code" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get student name
-    const { data: profile } = await supabaseAdmin.from("profiles").select("full_name").eq("user_id", student.id).maybeSingle();
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      studentName: profile?.full_name || email,
-      message: `Successfully linked to ${profile?.full_name || email}` 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        classroomId,
+        code: newCode,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle } from 'lucide-react';
+import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle, Copy, RefreshCw, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
 
@@ -33,15 +33,25 @@ interface Task {
   created_at: string;
 }
 
+interface Classroom {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export default function TeacherDashboard() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isLinkingStudent, setIsLinkingStudent] = useState(false);
+  const [isCreatingClassroom, setIsCreatingClassroom] = useState(false);
+  const [creatingClassroomLoading, setCreatingClassroomLoading] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
+  const [newClassroomName, setNewClassroomName] = useState('');
   
   // New task form
   const [newTask, setNewTask] = useState({
@@ -64,6 +74,17 @@ export default function TeacherDashboard() {
 
   const fetchData = async () => {
     if (!user) return;
+
+    const { data: classroomsData } = await supabase
+      .from('classrooms')
+      .select('id, name, code')
+      .eq('teacher_id', user.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (classroomsData) {
+      setClassrooms(classroomsData);
+    }
 
     // Fetch linked students
     const { data: links } = await supabase
@@ -97,11 +118,92 @@ export default function TeacherDashboard() {
     setLoading(false);
   };
 
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Your session expired. Please sign in again.');
+    }
+    return { Authorization: `Bearer ${session.access_token}` };
+  };
+
+  const handleCreateClassroom = async () => {
+    const name = newClassroomName.trim();
+    if (!name) {
+      toast.error('Please enter a classroom name');
+      return;
+    }
+
+    setCreatingClassroomLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await supabase.functions.invoke('create-classroom', {
+        headers,
+        body: { name },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to create classroom');
+        return;
+      }
+
+      if (res.data?.error) {
+        toast.error(res.data.error);
+        return;
+      }
+
+      const created = res.data?.classroom;
+      toast.success(`Created ${created?.name || 'classroom'} with code ${created?.code || ''}`);
+      setNewClassroomName('');
+      setIsCreatingClassroom(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    } finally {
+      setCreatingClassroomLoading(false);
+    }
+  };
+
+  const handleRegenerateCode = async (classroomId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await supabase.functions.invoke('regenerate-classroom-code', {
+        headers,
+        body: { classroomId },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to regenerate classroom code');
+        return;
+      }
+
+      if (res.data?.error) {
+        toast.error(res.data.error);
+        return;
+      }
+
+      toast.success(`New classroom code: ${res.data?.code}`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
+  };
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success('Classroom code copied');
+    } catch {
+      toast.error('Could not copy code');
+    }
+  };
+
   const handleLinkStudent = async () => {
     if (!studentEmail.trim() || !user) return;
 
     try {
+      const headers = await getAuthHeaders();
       const res = await supabase.functions.invoke('link-student', {
+        headers,
         body: { email: studentEmail.trim() },
       });
 
@@ -266,6 +368,33 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Dialog open={isCreatingClassroom} onOpenChange={setIsCreatingClassroom}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <KeyRound className="w-4 h-4" />
+                    New Class
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create Classroom</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Classroom Name</Label>
+                      <Input
+                        value={newClassroomName}
+                        onChange={(e) => setNewClassroomName(e.target.value)}
+                        placeholder="e.g., Period 1 Math"
+                      />
+                    </div>
+                    <Button className="w-full" onClick={handleCreateClassroom} disabled={creatingClassroomLoading}>
+                      {creatingClassroomLoading ? 'Creating...' : 'Create Classroom'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
               <Button variant="outline" className="gap-2" onClick={() => setIsLinkingStudent(true)}>
                 <Users className="w-4 h-4" />
                 Link Student
@@ -397,6 +526,34 @@ export default function TeacherDashboard() {
 
       {/* Main Content */}
       <main className="container max-w-6xl mx-auto px-4 py-6">
+        <div className="mb-6">
+          <h2 className="font-bold text-xl mb-4">Classroom Codes</h2>
+          {classrooms.length === 0 ? (
+            <div className="bg-card rounded-2xl p-6 shadow-soft border border-border/50 text-sm text-muted-foreground">
+              Create your first classroom to generate a 6-digit code for parents and students.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {classrooms.map((classroom) => (
+                <div key={classroom.id} className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
+                  <p className="font-semibold">{classroom.name}</p>
+                  <p className="text-2xl font-bold tracking-widest mt-1">{classroom.code}</p>
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => handleCopyCode(classroom.code)}>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => handleRegenerateCode(classroom.id)}>
+                      <RefreshCw className="w-4 h-4" />
+                      Regenerate
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
@@ -546,7 +703,7 @@ export default function TeacherDashboard() {
             <Users className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="font-semibold text-lg mb-2">No Students Linked</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              Link a student by their email to start assigning tasks.
+              Share classroom codes with families to get students linked automatically.
             </p>
             <Button onClick={() => setIsLinkingStudent(true)} className="gap-2">
               <Plus className="w-4 h-4" />

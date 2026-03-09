@@ -5,6 +5,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isValidClassroomCode(code: string) {
+  return /^[0-9]{6}$/.test(code);
+}
+
+function decodeJwtSubject(authHeader: string): string | null {
+  const token = authHeader.replace("Bearer ", "").trim();
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return typeof payload?.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -19,23 +38,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create client with user's token to verify they're a parent
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user: caller }, error: authError } = await supabaseUser.auth.getUser();
-    if (authError || !caller) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    const callerId = decodeJwtSubject(authHeader);
+    if (!callerId) {
+      return new Response(JSON.stringify({ error: "Invalid authorization token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Verify caller is a parent
-    const { data: roleData } = await supabaseUser.from("user_roles").select("role").eq("user_id", caller.id).eq("role", "parent").maybeSingle();
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const { data: roleData, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "parent")
+      .maybeSingle();
+
+    if (roleError) {
+      return new Response(JSON.stringify({ error: roleError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Only parents can create student accounts" }), {
         status: 403,
@@ -43,7 +72,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { fullName, email, password } = await req.json();
+    const { fullName, email, password, classroomCode } = await req.json();
     if (!fullName || !email || !password) {
       return new Response(JSON.stringify({ error: "fullName, email, and password are required" }), {
         status: 400,
@@ -51,13 +80,41 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role to create the student user
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    let classroom: { id: string; teacher_id: string } | null = null;
+    if (classroomCode) {
+      if (!isValidClassroomCode(classroomCode)) {
+        return new Response(JSON.stringify({ error: "classroomCode must be a 6-digit number" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    // Create auth user with auto-confirm
+      const { data: classroomData, error: classroomError } = await supabaseAdmin
+        .from("classrooms")
+        .select("id, teacher_id")
+        .eq("code", classroomCode)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (classroomError) {
+        return new Response(JSON.stringify({ error: classroomError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!classroomData) {
+        return new Response(JSON.stringify({ error: "Invalid or inactive classroom code" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      classroom = classroomData;
+    }
+
+    let studentId: string | null = null;
+
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -72,56 +129,80 @@ Deno.serve(async (req) => {
       });
     }
 
-    const studentId = newUser.user.id;
+    studentId = newUser.user.id;
 
-    // Create profile, role, stats, and parent link
-    const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
-      user_id: studentId,
-      full_name: fullName,
-    });
-    if (profileErr) console.error("Profile error:", profileErr);
+    try {
+      const { error: profileErr } = await supabaseAdmin.from("profiles").insert({
+        user_id: studentId,
+        full_name: fullName,
+      });
+      if (profileErr) throw profileErr;
 
-    const { error: roleErr } = await supabaseAdmin.from("user_roles").insert({
-      user_id: studentId,
-      role: "student",
-    });
-    if (roleErr) console.error("Role error:", roleErr);
+      const { error: roleErr } = await supabaseAdmin.from("user_roles").insert({
+        user_id: studentId,
+        role: "student",
+      });
+      if (roleErr) throw roleErr;
 
-    const { error: statsErr } = await supabaseAdmin.from("student_stats").insert({
-      user_id: studentId,
-      points: 0,
-      streak_days: 0,
-      tasks_completed: 0,
-    });
-    if (statsErr) console.error("Stats error:", statsErr);
+      const { error: statsErr } = await supabaseAdmin.from("student_stats").insert({
+        user_id: studentId,
+        points: 0,
+        streak_days: 0,
+        tasks_completed: 0,
+      });
+      if (statsErr) throw statsErr;
 
-    // Link parent to student
-    const { error: linkErr } = await supabaseAdmin.from("parent_student_links").insert({
-      parent_id: caller.id,
-      student_id: studentId,
-    });
-    if (linkErr) console.error("Link error:", linkErr);
-
-    // Also link any teachers that are linked to the parent (for the super-admin flow)
-    // Check if caller also has teacher role, if so auto-link
-    const { data: teacherRole } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", caller.id).eq("role", "teacher").maybeSingle();
-    if (teacherRole) {
-      await supabaseAdmin.from("teacher_student_links").insert({
-        teacher_id: caller.id,
+      const { error: parentLinkErr } = await supabaseAdmin.from("parent_student_links").insert({
+        parent_id: callerId,
         student_id: studentId,
+      });
+      if (parentLinkErr) throw parentLinkErr;
+
+      if (classroom) {
+        const { error: classroomLinkErr } = await supabaseAdmin.from("classroom_students").insert({
+          classroom_id: classroom.id,
+          student_id: studentId,
+          joined_via: "parent_signup",
+        });
+        if (classroomLinkErr) throw classroomLinkErr;
+
+        const { error: teacherLinkErr } = await supabaseAdmin.from("teacher_student_links").upsert(
+          {
+            teacher_id: classroom.teacher_id,
+            student_id: studentId,
+          },
+          {
+            onConflict: "teacher_id,student_id",
+            ignoreDuplicates: true,
+          },
+        );
+        if (teacherLinkErr) throw teacherLinkErr;
+      }
+    } catch (writeError) {
+      if (studentId) {
+        await supabaseAdmin.auth.admin.deleteUser(studentId);
+      }
+      return new Response(JSON.stringify({ error: (writeError as Error).message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      studentId,
-      message: `Student account created for ${fullName}` 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        studentId,
+        joinedClassroom: !!classroom,
+        classroomId: classroom?.id ?? null,
+        message: `Student account created for ${fullName}`,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

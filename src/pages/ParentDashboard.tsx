@@ -43,7 +43,15 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [addingLoading, setAddingLoading] = useState(false);
-  const [newStudent, setNewStudent] = useState({ fullName: '', email: '', password: '' });
+  const [newStudent, setNewStudent] = useState({ fullName: '', email: '', password: '', classroomCode: '' });
+
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Your session expired. Please sign in again.');
+    }
+    return { Authorization: `Bearer ${session.access_token}` };
+  };
 
   const handleAddStudent = async () => {
     if (!newStudent.fullName || !newStudent.email || !newStudent.password) {
@@ -54,15 +62,21 @@ export default function ParentDashboard() {
       toast.error('Password must be at least 6 characters');
       return;
     }
+    if (newStudent.classroomCode && !/^[0-9]{6}$/.test(newStudent.classroomCode)) {
+      toast.error('Classroom code must be a 6-digit number');
+      return;
+    }
 
     setAddingLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const headers = await getAuthHeaders();
       const res = await supabase.functions.invoke('create-student', {
+        headers,
         body: {
           fullName: newStudent.fullName,
           email: newStudent.email,
           password: newStudent.password,
+          classroomCode: newStudent.classroomCode || undefined,
         },
       });
 
@@ -75,9 +89,13 @@ export default function ParentDashboard() {
           toast.error(res.data.error);
         }
       } else {
-        toast.success(`Student account created for ${newStudent.fullName}!`);
+        if (res.data?.joinedClassroom) {
+          toast.success(`Student account created and joined a classroom for ${newStudent.fullName}!`);
+        } else {
+          toast.success(`Student account created for ${newStudent.fullName}!`);
+        }
         setIsAddingStudent(false);
-        setNewStudent({ fullName: '', email: '', password: '' });
+        setNewStudent({ fullName: '', email: '', password: '', classroomCode: '' });
         fetchChildren();
       }
     } catch (err: any) {
@@ -231,6 +249,21 @@ export default function ParentDashboard() {
                         value={newStudent.password}
                         onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
                         placeholder="At least 6 characters"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Classroom Code (optional)</Label>
+                      <Input
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={newStudent.classroomCode}
+                        onChange={(e) =>
+                          setNewStudent({
+                            ...newStudent,
+                            classroomCode: e.target.value.replace(/\D/g, '').slice(0, 6),
+                          })
+                        }
+                        placeholder="6-digit code from teacher"
                       />
                     </div>
                     <Button onClick={handleAddStudent} className="w-full" disabled={addingLoading}>

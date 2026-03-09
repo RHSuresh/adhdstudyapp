@@ -10,6 +10,10 @@ import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { PomodoroTimer } from '@/components/PomodoroTimer';
 import { Sparkles, LogOut, MessageCircle, ListTodo, Trophy, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { ChatMessage } from '@/types/task';
 
 interface TimerAction {
@@ -41,6 +45,17 @@ export default function StudentDashboard() {
   const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards' | 'timer'>('tasks');
   const [loading, setLoading] = useState(true);
   const [timerActions, setTimerActions] = useState<TimerAction[]>([]);
+  const [isJoinClassOpen, setIsJoinClassOpen] = useState(false);
+  const [joinClassLoading, setJoinClassLoading] = useState(false);
+  const [classroomCode, setClassroomCode] = useState('');
+
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Your session expired. Please sign in again.');
+    }
+    return { Authorization: `Bearer ${session.access_token}` };
+  };
 
   useEffect(() => {
     if (!user) {
@@ -106,8 +121,10 @@ export default function StudentDashboard() {
     try {
       // Build history from existing messages for context
       const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const headers = await getAuthHeaders();
 
       const { data, error } = await supabase.functions.invoke('focus-buddy-chat', {
+        headers,
         body: { message: content, history },
       });
 
@@ -137,6 +154,46 @@ export default function StudentDashboard() {
       setMessages(prev => [...prev, botResponse]);
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const handleJoinClassroom = async () => {
+    const normalizedCode = classroomCode.trim();
+    if (!/^[0-9]{6}$/.test(normalizedCode)) {
+      toast.error('Please enter a valid 6-digit classroom code');
+      return;
+    }
+
+    setJoinClassLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await supabase.functions.invoke('join-classroom-by-code', {
+        headers,
+        body: { code: normalizedCode },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to join classroom');
+        return;
+      }
+
+      if (res.data?.error) {
+        toast.error(res.data.error);
+        return;
+      }
+
+      if (res.data?.alreadyJoined) {
+        toast.info(`You're already in ${res.data.classroom?.name || 'this class'}`);
+      } else {
+        toast.success(`Joined ${res.data.classroom?.name || 'classroom'}!`);
+      }
+
+      setClassroomCode('');
+      setIsJoinClassOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong while joining classroom');
+    } finally {
+      setJoinClassLoading(false);
     }
   };
 
@@ -174,10 +231,39 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            <RoleSwitcher />
-            <Button variant="ghost" size="icon" onClick={signOut}>
-              <LogOut className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Dialog open={isJoinClassOpen} onOpenChange={setIsJoinClassOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">Join Class</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Join a Classroom</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="classroom-code">Classroom Code</Label>
+                      <Input
+                        id="classroom-code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Enter 6-digit code"
+                        value={classroomCode}
+                        onChange={(e) => setClassroomCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      />
+                    </div>
+                    <Button onClick={handleJoinClassroom} className="w-full" disabled={joinClassLoading}>
+                      {joinClassLoading ? 'Joining...' : 'Join Classroom'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <RoleSwitcher />
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>

@@ -1,9 +1,18 @@
-project_id = "ikicpwqgzjoouqqpgrqf"
+project_id = "wrzqtnblfaglnovcrzqn"
 
 [functions.create-student]
 verify_jwt = false
 
 [functions.link-student]
+verify_jwt = false
+
+[functions.create-classroom]
+verify_jwt = false
+
+[functions.regenerate-classroom-code]
+verify_jwt = false
+
+[functions.join-classroom-by-code]
 verify_jwt = false
 
 [functions.focus-buddy-chat]

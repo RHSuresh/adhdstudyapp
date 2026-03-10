@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
-import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar, Plus } from 'lucide-react';
+import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar, Plus, Ticket } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 interface Child {

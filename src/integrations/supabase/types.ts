@@ -88,6 +88,38 @@ export type Database = {
         }
         Relationships: []
       }
+      invite_code_uses: {
+        Row: {
+          code_id: string
+          id: string
+          parent_id: string
+          student_id: string
+          used_at: string
+        }
+        Insert: {
+          code_id: string
+          id?: string
+          parent_id: string
+          student_id: string
+          used_at?: string
+        }
+        Update: {
+          code_id?: string
+          id?: string
+          parent_id?: string
+          student_id?: string
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_code_uses_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "invite_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invite_codes: {
         Row: {
           class_id: string | null
@@ -95,6 +127,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          max_uses: number | null
           teacher_id: string
           used_at: string | null
           used_by: string | null
@@ -105,6 +138,7 @@ export type Database = {
           created_at?: string
           expires_at: string
           id?: string
+          max_uses?: number | null
           teacher_id: string
           used_at?: string | null
           used_by?: string | null
@@ -115,6 +149,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          max_uses?: number | null
           teacher_id?: string
           used_at?: string | null
           used_by?: string | null

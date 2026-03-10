@@ -60,8 +60,11 @@ export default function TeacherDashboard() {
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [classRosters, setClassRosters] = useState<ClassRoster>({});
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [codeUseCounts, setCodeUseCounts] = useState<{ [codeId: string]: number }>({});
   const [loading, setLoading] = useState(true);
+  const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isLinkingStudent, setIsLinkingStudent] = useState(false);
   const [isManagingClasses, setIsManagingClasses] = useState(false);

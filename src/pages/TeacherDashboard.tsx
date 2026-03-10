@@ -40,6 +40,10 @@ interface ClassItem {
   created_at: string;
 }
 
+interface ClassRoster {
+  [classId: string]: { id: string; full_name: string }[];
+}
+
 interface InviteCode {
   id: string;
   code: string;
@@ -47,6 +51,7 @@ interface InviteCode {
   used_by: string | null;
   expires_at: string;
   created_at: string;
+  max_uses: number | null;
 }
 
 export default function TeacherDashboard() {
@@ -55,8 +60,11 @@ export default function TeacherDashboard() {
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [classRosters, setClassRosters] = useState<ClassRoster>({});
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [codeUseCounts, setCodeUseCounts] = useState<{ [codeId: string]: number }>({});
   const [loading, setLoading] = useState(true);
+  const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isLinkingStudent, setIsLinkingStudent] = useState(false);
   const [isManagingClasses, setIsManagingClasses] = useState(false);
@@ -126,6 +134,28 @@ export default function TeacherDashboard() {
 
     if (classesData) {
       setClasses(classesData);
+
+      // Fetch roster for each class
+      const rosters: ClassRoster = {};
+      for (const cls of classesData) {
+        const { data: classStudentLinks } = await supabase
+          .from('class_students')
+          .select('student_id')
+          .eq('class_id', cls.id);
+
+        if (classStudentLinks && classStudentLinks.length > 0) {
+          const sIds = classStudentLinks.map(cs => cs.student_id);
+          const { data: studentProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name')
+            .in('user_id', sIds);
+
+          rosters[cls.id] = (studentProfiles || []).map(p => ({ id: p.user_id, full_name: p.full_name }));
+        } else {
+          rosters[cls.id] = [];
+        }
+      }
+      setClassRosters(rosters);
     }
 
     // Fetch invite codes
@@ -137,6 +167,17 @@ export default function TeacherDashboard() {
 
     if (codesData) {
       setInviteCodes(codesData as InviteCode[]);
+
+      // Fetch use counts
+      const counts: { [codeId: string]: number } = {};
+      for (const ic of codesData) {
+        const { count } = await supabase
+          .from('invite_code_uses')
+          .select('id', { count: 'exact', head: true })
+          .eq('code_id', ic.id);
+        counts[ic.id] = count || 0;
+      }
+      setCodeUseCounts(counts);
     }
 
     setLoading(false);
@@ -623,8 +664,30 @@ export default function TeacherDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {classes.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-sm bg-secondary/50 rounded-xl px-3 py-2">
-                      <span className="font-medium">{c.name}</span>
+                    <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        <button
+                          onClick={() => setExpandedClass(expandedClass === c.id ? null : c.id)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {classRosters[c.id]?.length || 0} students {expandedClass === c.id ? '▲' : '▼'}
+                        </button>
+                      </div>
+                      {expandedClass === c.id && (
+                        <div className="mt-2 space-y-1">
+                          {(classRosters[c.id] || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No students enrolled yet.</p>
+                          ) : (
+                            (classRosters[c.id] || []).map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -639,15 +702,20 @@ export default function TeacherDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {inviteCodes
-                    .filter(c => !c.used_by && new Date(c.expires_at) > new Date())
+                    .filter(c => new Date(c.expires_at) > new Date())
                     .slice(0, 5)
                     .map((ic) => {
                       const cls = classes.find(c => c.id === ic.class_id);
+                      const useCount = codeUseCounts[ic.id] || 0;
                       return (
                         <div key={ic.id} className="flex items-center justify-between text-sm bg-secondary/50 rounded-xl px-3 py-2">
                           <div>
                             <span className="font-mono font-bold tracking-wider">{ic.code}</span>
                             {cls && <span className="text-xs text-muted-foreground ml-2">({cls.name})</span>}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {useCount} use{useCount !== 1 ? 's' : ''}
+                              {ic.max_uses !== null && ` / ${ic.max_uses}`}
+                            </span>
                           </div>
                           <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
                             <Copy className="w-3 h-3" />
@@ -820,15 +888,30 @@ export default function TeacherDashboard() {
               </div>
 
               {classes.length > 0 ? (
-                <div className="space-y-2">
-                  {classes.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between bg-secondary/50 rounded-xl px-3 py-2">
-                      <span className="font-medium text-sm">{c.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {classes.map((c) => {
+                    const roster = classRosters[c.id] || [];
+                    return (
+                      <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {roster.length} student{roster.length !== 1 ? 's' : ''} • {new Date(c.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {roster.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
+                            {roster.map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
@@ -873,19 +956,21 @@ export default function TeacherDashboard() {
               </Button>
 
               {/* Show existing active codes */}
-              {inviteCodes.filter(c => !c.used_by && new Date(c.expires_at) > new Date()).length > 0 && (
+              {inviteCodes.filter(c => new Date(c.expires_at) > new Date()).length > 0 && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-2">Active codes:</p>
                   <div className="space-y-1">
                     {inviteCodes
-                      .filter(c => !c.used_by && new Date(c.expires_at) > new Date())
+                      .filter(c => new Date(c.expires_at) > new Date())
                       .map(ic => {
                         const cls = classes.find(c => c.id === ic.class_id);
+                        const useCount = codeUseCounts[ic.id] || 0;
                         return (
                           <div key={ic.id} className="flex items-center justify-between text-sm">
                             <div>
                               <span className="font-mono font-bold">{ic.code}</span>
                               {cls && <span className="text-xs text-muted-foreground ml-1">({cls.name})</span>}
+                              <span className="text-xs text-muted-foreground ml-1">• {useCount} use{useCount !== 1 ? 's' : ''}</span>
                             </div>
                             <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
                               <Copy className="w-3 h-3" />

@@ -231,7 +231,12 @@ export default function ParentDashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button variant="outline" className="gap-2" onClick={() => setIsJoiningClass(true)}>
+                <Ticket className="w-4 h-4" />
+                Join Class
+              </Button>
+
               <Dialog open={isAddingStudent} onOpenChange={setIsAddingStudent}>
                 <DialogTrigger asChild>
                   <Button className="gap-2">

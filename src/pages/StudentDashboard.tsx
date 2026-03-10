@@ -288,6 +288,15 @@ export default function StudentDashboard() {
                 <p className="text-xs text-muted-foreground">
                   {studentStats?.points || 0} points • {studentStats?.streak_days || 0} day streak 🔥
                 </p>
+                {studentClasses.length > 0 && (
+                  <div className="flex gap-1 mt-1 flex-wrap">
+                    {studentClasses.map(c => (
+                      <span key={c.id} className="px-2 py-0.5 bg-accent text-accent-foreground text-xs rounded-full">
+                        📚 {c.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

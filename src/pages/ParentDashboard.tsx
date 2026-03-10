@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
-import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar, Plus } from 'lucide-react';
+import { Users, LogOut, CheckCircle, Clock, Trophy, Flame, Calendar, Plus, Ticket } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 interface Child {
@@ -42,6 +43,10 @@ export default function ParentDashboard() {
   const [childTasks, setChildTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isJoiningClass, setIsJoiningClass] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinStudentId, setJoinStudentId] = useState('');
+  const [joiningLoading, setJoiningLoading] = useState(false);
   const [addingLoading, setAddingLoading] = useState(false);
   const [newStudent, setNewStudent] = useState({ fullName: '', email: '', password: '' });
 
@@ -84,6 +89,38 @@ export default function ParentDashboard() {
       toast.error(err.message || 'Something went wrong');
     }
     setAddingLoading(false);
+  };
+
+  const handleJoinClass = async () => {
+    if (!joinCode.trim()) {
+      toast.error('Please enter an invite code');
+      return;
+    }
+    if (!joinStudentId) {
+      toast.error('Please select a child to enroll');
+      return;
+    }
+
+    setJoiningLoading(true);
+    try {
+      const res = await supabase.functions.invoke('enroll-student-in-class', {
+        body: { code: joinCode.trim(), studentId: joinStudentId },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to enroll');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(res.data.message || 'Student enrolled successfully!');
+        setIsJoiningClass(false);
+        setJoinCode('');
+        setJoinStudentId('');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
+    setJoiningLoading(false);
   };
 
   useEffect(() => {
@@ -194,7 +231,12 @@ export default function ParentDashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button variant="outline" className="gap-2" onClick={() => setIsJoiningClass(true)}>
+                <Ticket className="w-4 h-4" />
+                Join Class
+              </Button>
+
               <Dialog open={isAddingStudent} onOpenChange={setIsAddingStudent}>
                 <DialogTrigger asChild>
                   <Button className="gap-2">
@@ -421,6 +463,52 @@ export default function ParentDashboard() {
             </div>
           </>
         )}
+
+        {/* Join Class Dialog */}
+        <Dialog open={isJoiningClass} onOpenChange={setIsJoiningClass}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Join a Class</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter the invite code from your child's teacher to enroll them in a class.
+              </p>
+              <div className="space-y-2">
+                <Label>Invite Code</Label>
+                <Input
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="e.g., ABC123"
+                  className="font-mono tracking-wider"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Select Child</Label>
+                <Select value={joinStudentId} onValueChange={setJoinStudentId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a child" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {children.map((child) => (
+                      <SelectItem key={child.id} value={child.id}>
+                        {child.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleJoinClass} className="w-full" disabled={joiningLoading || children.length === 0}>
+                {joiningLoading ? 'Enrolling...' : 'Enroll in Class'}
+              </Button>
+              {children.length === 0 && (
+                <p className="text-xs text-destructive text-center">
+                  Add a student first before joining a class.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

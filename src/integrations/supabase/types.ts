@@ -38,6 +38,132 @@ export type Database = {
         }
         Relationships: []
       }
+      class_students: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classes: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      invite_code_uses: {
+        Row: {
+          code_id: string
+          id: string
+          parent_id: string
+          student_id: string
+          used_at: string
+        }
+        Insert: {
+          code_id: string
+          id?: string
+          parent_id: string
+          student_id: string
+          used_at?: string
+        }
+        Update: {
+          code_id?: string
+          id?: string
+          parent_id?: string
+          student_id?: string
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_code_uses_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "invite_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invite_codes: {
+        Row: {
+          class_id: string | null
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          max_uses: number | null
+          teacher_id: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          class_id?: string | null
+          code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          max_uses?: number | null
+          teacher_id: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          class_id?: string | null
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          max_uses?: number | null
+          teacher_id?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_codes_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parent_student_links: {
         Row: {
           created_at: string
@@ -154,6 +280,7 @@ export type Database = {
           approved_by: string | null
           assigned_by: string
           category: string
+          class_id: string | null
           completed: boolean
           completed_at: string | null
           completion_approved: boolean
@@ -173,6 +300,7 @@ export type Database = {
           approved_by?: string | null
           assigned_by: string
           category?: string
+          class_id?: string | null
           completed?: boolean
           completed_at?: string | null
           completion_approved?: boolean
@@ -192,6 +320,7 @@ export type Database = {
           approved_by?: string | null
           assigned_by?: string
           category?: string
+          class_id?: string | null
           completed?: boolean
           completed_at?: string | null
           completion_approved?: boolean
@@ -206,7 +335,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teacher_student_links: {
         Row: {

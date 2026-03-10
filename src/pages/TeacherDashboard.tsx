@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle } from 'lucide-react';
+import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle, Copy, BookOpen, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
 
@@ -31,6 +31,27 @@ interface Task {
   completion_approved: boolean;
   points_awarded: number;
   created_at: string;
+  class_id: string | null;
+}
+
+interface ClassItem {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+interface ClassRoster {
+  [classId: string]: { id: string; full_name: string }[];
+}
+
+interface InviteCode {
+  id: string;
+  code: string;
+  class_id: string | null;
+  used_by: string | null;
+  expires_at: string;
+  created_at: string;
+  max_uses: number | null;
 }
 
 export default function TeacherDashboard() {
@@ -38,16 +59,26 @@ export default function TeacherDashboard() {
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [classRosters, setClassRosters] = useState<ClassRoster>({});
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [codeUseCounts, setCodeUseCounts] = useState<{ [codeId: string]: number }>({});
   const [loading, setLoading] = useState(true);
+  const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isLinkingStudent, setIsLinkingStudent] = useState(false);
+  const [isManagingClasses, setIsManagingClasses] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
-  
+  const [newClassName, setNewClassName] = useState('');
+  const [selectedClassForCode, setSelectedClassForCode] = useState<string>('');
+
   // New task form
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
     student_id: '',
+    class_id: '',
     category: 'homework',
     priority: 'medium',
     due_date: '',
@@ -91,7 +122,62 @@ export default function TeacherDashboard() {
       .order('created_at', { ascending: false });
 
     if (tasksData) {
-      setTasks(tasksData);
+      setTasks(tasksData as Task[]);
+    }
+
+    // Fetch classes
+    const { data: classesData } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (classesData) {
+      setClasses(classesData);
+
+      // Fetch roster for each class
+      const rosters: ClassRoster = {};
+      for (const cls of classesData) {
+        const { data: classStudentLinks } = await supabase
+          .from('class_students')
+          .select('student_id')
+          .eq('class_id', cls.id);
+
+        if (classStudentLinks && classStudentLinks.length > 0) {
+          const sIds = classStudentLinks.map(cs => cs.student_id);
+          const { data: studentProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name')
+            .in('user_id', sIds);
+
+          rosters[cls.id] = (studentProfiles || []).map(p => ({ id: p.user_id, full_name: p.full_name }));
+        } else {
+          rosters[cls.id] = [];
+        }
+      }
+      setClassRosters(rosters);
+    }
+
+    // Fetch invite codes
+    const { data: codesData } = await supabase
+      .from('invite_codes')
+      .select('*')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (codesData) {
+      setInviteCodes(codesData as InviteCode[]);
+
+      // Fetch use counts
+      const counts: { [codeId: string]: number } = {};
+      for (const ic of codesData) {
+        const { count } = await supabase
+          .from('invite_code_uses')
+          .select('id', { count: 'exact', head: true })
+          .eq('code_id', ic.id);
+        counts[ic.id] = count || 0;
+      }
+      setCodeUseCounts(counts);
     }
 
     setLoading(false);
@@ -124,42 +210,134 @@ export default function TeacherDashboard() {
     }
   };
 
+  const handleCreateClass = async () => {
+    if (!newClassName.trim() || !user) return;
+
+    const { error } = await supabase
+      .from('classes')
+      .insert({
+        name: newClassName.trim(),
+        teacher_id: user.id,
+      });
+
+    if (error) {
+      toast.error('Failed to create class');
+    } else {
+      toast.success(`Class "${newClassName}" created!`);
+      setNewClassName('');
+      fetchData();
+    }
+  };
+
+  const handleGenerateInviteCode = async () => {
+    if (!user) return;
+
+    try {
+      const res = await supabase.functions.invoke('generate-invite-code', {
+        body: {
+          classId: selectedClassForCode || null,
+          expiresInDays: 7,
+        },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to generate code');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(`Invite code generated: ${res.data.code}`);
+        setIsGeneratingCode(false);
+        setSelectedClassForCode('');
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success('Code copied to clipboard!');
+  };
+
   const handleCreateTask = async () => {
-    if (!newTask.title || !newTask.student_id || !user) {
+    if (!newTask.title || !user) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const { error } = await supabase
-      .from('tasks')
-      .insert({
+    // If assigning to a class, create tasks for all students in that class
+    if (newTask.class_id && !newTask.student_id) {
+      const { data: classStudents } = await supabase
+        .from('class_students')
+        .select('student_id')
+        .eq('class_id', newTask.class_id);
+
+      if (!classStudents || classStudents.length === 0) {
+        toast.error('No students in this class yet');
+        return;
+      }
+
+      const tasksToInsert = classStudents.map(cs => ({
         title: newTask.title,
         description: newTask.description || null,
-        student_id: newTask.student_id,
+        student_id: cs.student_id,
         assigned_by: user.id,
+        class_id: newTask.class_id,
         category: newTask.category,
         priority: newTask.priority,
         due_date: newTask.due_date || null,
         points_awarded: newTask.points_awarded,
-      });
+      }));
 
-    if (error) {
-      console.error('Error creating task:', error);
-      toast.error('Failed to create task');
+      const { error } = await supabase.from('tasks').insert(tasksToInsert);
+
+      if (error) {
+        toast.error('Failed to assign tasks');
+      } else {
+        toast.success(`Task assigned to ${classStudents.length} students!`);
+        resetTaskForm();
+        fetchData();
+      }
+    } else if (newTask.student_id) {
+      const { error } = await supabase
+        .from('tasks')
+        .insert({
+          title: newTask.title,
+          description: newTask.description || null,
+          student_id: newTask.student_id,
+          assigned_by: user.id,
+          class_id: newTask.class_id || null,
+          category: newTask.category,
+          priority: newTask.priority,
+          due_date: newTask.due_date || null,
+          points_awarded: newTask.points_awarded,
+        });
+
+      if (error) {
+        toast.error('Failed to create task');
+      } else {
+        toast.success('Task assigned successfully!');
+        resetTaskForm();
+        fetchData();
+      }
     } else {
-      toast.success('Task assigned successfully!');
-      setIsAddingTask(false);
-      setNewTask({
-        title: '',
-        description: '',
-        student_id: '',
-        category: 'homework',
-        priority: 'medium',
-        due_date: '',
-        points_awarded: 10,
-      });
-      fetchData();
+      toast.error('Please select a student or a class');
     }
+  };
+
+  const resetTaskForm = () => {
+    setIsAddingTask(false);
+    setNewTask({
+      title: '',
+      description: '',
+      student_id: '',
+      class_id: '',
+      category: 'homework',
+      priority: 'medium',
+      due_date: '',
+      points_awarded: 10,
+    });
   };
 
   const handleApproveTask = async (taskId: string) => {
@@ -176,12 +354,10 @@ export default function TeacherDashboard() {
       .eq('id', taskId);
 
     if (error) {
-      console.error('Error approving task:', error);
       toast.error('Failed to approve task');
     } else {
       toast.success('Task approved! Points awarded to student.');
-      
-      // Update student stats
+
       const { data: stats } = await supabase
         .from('student_stats')
         .select('*')
@@ -192,7 +368,7 @@ export default function TeacherDashboard() {
         const today = new Date().toISOString().split('T')[0];
         const lastDate = stats.last_completed_date;
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        
+
         let newStreak = stats.streak_days;
         if (lastDate === yesterday) {
           newStreak += 1;
@@ -265,14 +441,22 @@ export default function TeacherDashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="gap-2" onClick={() => setIsLinkingStudent(true)}>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => setIsManagingClasses(true)}>
+                <BookOpen className="w-4 h-4" />
+                Classes
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => setIsGeneratingCode(true)}>
+                <Ticket className="w-4 h-4" />
+                Invite Code
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => setIsLinkingStudent(true)}>
                 <Users className="w-4 h-4" />
                 Link Student
               </Button>
               <Dialog open={isAddingTask} onOpenChange={setIsAddingTask}>
                 <DialogTrigger asChild>
-                  <Button className="gap-2">
+                  <Button size="sm" className="gap-1">
                     <Plus className="w-4 h-4" />
                     Assign Task
                   </Button>
@@ -283,20 +467,41 @@ export default function TeacherDashboard() {
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Student</Label>
+                      <Label>Assign to</Label>
                       <Select
-                        value={newTask.student_id}
-                        onValueChange={(v) => setNewTask({ ...newTask, student_id: v })}
+                        value={newTask.class_id ? `class:${newTask.class_id}` : newTask.student_id ? `student:${newTask.student_id}` : ''}
+                        onValueChange={(v) => {
+                          if (v.startsWith('class:')) {
+                            setNewTask({ ...newTask, class_id: v.replace('class:', ''), student_id: '' });
+                          } else if (v.startsWith('student:')) {
+                            setNewTask({ ...newTask, student_id: v.replace('student:', ''), class_id: '' });
+                          }
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a student" />
+                          <SelectValue placeholder="Select student or class" />
                         </SelectTrigger>
                         <SelectContent>
-                          {students.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.full_name}
-                            </SelectItem>
-                          ))}
+                          {classes.length > 0 && (
+                            <>
+                              <SelectItem value="__class_header" disabled>— Classes —</SelectItem>
+                              {classes.map((c) => (
+                                <SelectItem key={`class:${c.id}`} value={`class:${c.id}`}>
+                                  📚 {c.name} (entire class)
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                          {students.length > 0 && (
+                            <>
+                              <SelectItem value="__student_header" disabled>— Students —</SelectItem>
+                              {students.map((s) => (
+                                <SelectItem key={`student:${s.id}`} value={`student:${s.id}`}>
+                                  👤 {s.full_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -448,6 +653,82 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
+        {/* Classes & Invite Codes Summary */}
+        {(classes.length > 0 || inviteCodes.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            {classes.length > 0 && (
+              <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-primary" />
+                  Your Classes
+                </h3>
+                <div className="space-y-2">
+                  {classes.map((c) => (
+                    <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        <button
+                          onClick={() => setExpandedClass(expandedClass === c.id ? null : c.id)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {classRosters[c.id]?.length || 0} students {expandedClass === c.id ? '▲' : '▼'}
+                        </button>
+                      </div>
+                      {expandedClass === c.id && (
+                        <div className="mt-2 space-y-1">
+                          {(classRosters[c.id] || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No students enrolled yet.</p>
+                          ) : (
+                            (classRosters[c.id] || []).map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {inviteCodes.length > 0 && (
+              <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-primary" />
+                  Active Invite Codes
+                </h3>
+                <div className="space-y-2">
+                  {inviteCodes
+                    .filter(c => new Date(c.expires_at) > new Date())
+                    .slice(0, 5)
+                    .map((ic) => {
+                      const cls = classes.find(c => c.id === ic.class_id);
+                      const useCount = codeUseCounts[ic.id] || 0;
+                      return (
+                        <div key={ic.id} className="flex items-center justify-between text-sm bg-secondary/50 rounded-xl px-3 py-2">
+                          <div>
+                            <span className="font-mono font-bold tracking-wider">{ic.code}</span>
+                            {cls && <span className="text-xs text-muted-foreground ml-2">({cls.name})</span>}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {useCount} use{useCount !== 1 ? 's' : ''}
+                              {ic.max_uses !== null && ` / ${ic.max_uses}`}
+                            </span>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Pending Approval Section */}
         {pendingApproval.length > 0 && (
           <div className="mb-6">
@@ -544,14 +825,20 @@ export default function TeacherDashboard() {
         {students.length === 0 && (
           <div className="bg-accent/50 rounded-2xl p-6 text-center">
             <Users className="w-12 h-12 text-primary mx-auto mb-4" />
-            <h3 className="font-semibold text-lg mb-2">No Students Linked</h3>
+            <h3 className="font-semibold text-lg mb-2">No Students Yet</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              Link a student by their email to start assigning tasks.
+              Create a class, generate an invite code, and share it with parents to get started.
             </p>
-            <Button onClick={() => setIsLinkingStudent(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Link Student
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={() => setIsManagingClasses(true)} className="gap-2">
+                <BookOpen className="w-4 h-4" />
+                Create Class
+              </Button>
+              <Button onClick={() => setIsGeneratingCode(true)} className="gap-2">
+                <Ticket className="w-4 h-4" />
+                Generate Invite Code
+              </Button>
+            </div>
           </div>
         )}
 
@@ -559,7 +846,7 @@ export default function TeacherDashboard() {
         <Dialog open={isLinkingStudent} onOpenChange={setIsLinkingStudent}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Link a Student</DialogTitle>
+              <DialogTitle>Link a Student (Manual)</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -571,12 +858,129 @@ export default function TeacherDashboard() {
                   placeholder="student@example.com"
                 />
                 <p className="text-xs text-muted-foreground">
-                  The student must already have an account (created by a parent).
+                  Fallback: link a student directly by email. Prefer using invite codes instead.
                 </p>
               </div>
               <Button onClick={handleLinkStudent} className="w-full">
                 Link Student
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Classes Dialog */}
+        <Dialog open={isManagingClasses} onOpenChange={setIsManagingClasses}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Manage Classes</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  placeholder="e.g., Math Period 3"
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateClass()}
+                />
+                <Button onClick={handleCreateClass} disabled={!newClassName.trim()}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {classes.length > 0 ? (
+                <div className="space-y-3">
+                  {classes.map((c) => {
+                    const roster = classRosters[c.id] || [];
+                    return (
+                      <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {roster.length} student{roster.length !== 1 ? 's' : ''} • {new Date(c.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {roster.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
+                            {roster.map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No classes yet. Create one above.
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Generate Invite Code Dialog */}
+        <Dialog open={isGeneratingCode} onOpenChange={setIsGeneratingCode}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Generate Invite Code</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Generate a code to share with parents. When they sign up using this code, their children will be automatically linked to you.
+              </p>
+              <div className="space-y-2">
+                <Label>Class (optional)</Label>
+                <Select
+                  value={selectedClassForCode}
+                  onValueChange={setSelectedClassForCode}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No specific class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No specific class</SelectItem>
+                    {classes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleGenerateInviteCode} className="w-full">
+                Generate Code
+              </Button>
+
+              {/* Show existing active codes */}
+              {inviteCodes.filter(c => new Date(c.expires_at) > new Date()).length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-2">Active codes:</p>
+                  <div className="space-y-1">
+                    {inviteCodes
+                      .filter(c => new Date(c.expires_at) > new Date())
+                      .map(ic => {
+                        const cls = classes.find(c => c.id === ic.class_id);
+                        const useCount = codeUseCounts[ic.id] || 0;
+                        return (
+                          <div key={ic.id} className="flex items-center justify-between text-sm">
+                            <div>
+                              <span className="font-mono font-bold">{ic.code}</span>
+                              {cls && <span className="text-xs text-muted-foreground ml-1">({cls.name})</span>}
+                              <span className="text-xs text-muted-foreground ml-1">• {useCount} use{useCount !== 1 ? 's' : ''}</span>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

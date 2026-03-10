@@ -40,6 +40,7 @@ export function AuthPage({ role }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -63,7 +64,7 @@ export function AuthPage({ role }: AuthPageProps) {
           navigate(`/${role}`);
         }
       } else {
-        const { error } = await signUp(email, password, fullName, role);
+        const { error } = await signUp(email, password, fullName, role, role === 'parent' ? inviteCode : undefined);
         if (error) {
           toast.error(error.message);
         } else {
@@ -110,6 +111,23 @@ export function AuthPage({ role }: AuthPageProps) {
                   required={!isLogin}
                   className="rounded-xl"
                 />
+              </div>
+            )}
+
+            {!isLogin && role === 'parent' && (
+              <div className="space-y-2">
+                <Label htmlFor="inviteCode">Invite Code</Label>
+                <Input
+                  id="inviteCode"
+                  type="text"
+                  placeholder="Enter the code from your child's teacher"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  required={!isLogin && role === 'parent'}
+                  className="rounded-xl uppercase tracking-widest font-mono"
+                  maxLength={6}
+                />
+                <p className="text-xs text-muted-foreground">Ask your child's teacher for an invite code</p>
               </div>
             )}
 

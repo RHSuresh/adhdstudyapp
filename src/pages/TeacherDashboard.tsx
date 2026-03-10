@@ -664,8 +664,30 @@ export default function TeacherDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {classes.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-sm bg-secondary/50 rounded-xl px-3 py-2">
-                      <span className="font-medium">{c.name}</span>
+                    <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        <button
+                          onClick={() => setExpandedClass(expandedClass === c.id ? null : c.id)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {classRosters[c.id]?.length || 0} students {expandedClass === c.id ? '▲' : '▼'}
+                        </button>
+                      </div>
+                      {expandedClass === c.id && (
+                        <div className="mt-2 space-y-1">
+                          {(classRosters[c.id] || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No students enrolled yet.</p>
+                          ) : (
+                            (classRosters[c.id] || []).map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

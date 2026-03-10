@@ -43,6 +43,10 @@ export default function ParentDashboard() {
   const [childTasks, setChildTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isJoiningClass, setIsJoiningClass] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinStudentId, setJoinStudentId] = useState('');
+  const [joiningLoading, setJoiningLoading] = useState(false);
   const [addingLoading, setAddingLoading] = useState(false);
   const [newStudent, setNewStudent] = useState({ fullName: '', email: '', password: '' });
 

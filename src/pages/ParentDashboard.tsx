@@ -91,6 +91,38 @@ export default function ParentDashboard() {
     setAddingLoading(false);
   };
 
+  const handleJoinClass = async () => {
+    if (!joinCode.trim()) {
+      toast.error('Please enter an invite code');
+      return;
+    }
+    if (!joinStudentId) {
+      toast.error('Please select a child to enroll');
+      return;
+    }
+
+    setJoiningLoading(true);
+    try {
+      const res = await supabase.functions.invoke('enroll-student-in-class', {
+        body: { code: joinCode.trim(), studentId: joinStudentId },
+      });
+
+      if (res.error) {
+        toast.error(res.error.message || 'Failed to enroll');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(res.data.message || 'Student enrolled successfully!');
+        setIsJoiningClass(false);
+        setJoinCode('');
+        setJoinStudentId('');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
+    setJoiningLoading(false);
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/auth/parent');

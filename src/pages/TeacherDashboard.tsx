@@ -40,6 +40,10 @@ interface ClassItem {
   created_at: string;
 }
 
+interface ClassRoster {
+  [classId: string]: { id: string; full_name: string }[];
+}
+
 interface InviteCode {
   id: string;
   code: string;
@@ -47,6 +51,7 @@ interface InviteCode {
   used_by: string | null;
   expires_at: string;
   created_at: string;
+  max_uses: number | null;
 }
 
 export default function TeacherDashboard() {

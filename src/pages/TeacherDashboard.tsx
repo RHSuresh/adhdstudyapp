@@ -702,15 +702,20 @@ export default function TeacherDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {inviteCodes
-                    .filter(c => !c.used_by && new Date(c.expires_at) > new Date())
+                    .filter(c => new Date(c.expires_at) > new Date())
                     .slice(0, 5)
                     .map((ic) => {
                       const cls = classes.find(c => c.id === ic.class_id);
+                      const useCount = codeUseCounts[ic.id] || 0;
                       return (
                         <div key={ic.id} className="flex items-center justify-between text-sm bg-secondary/50 rounded-xl px-3 py-2">
                           <div>
                             <span className="font-mono font-bold tracking-wider">{ic.code}</span>
                             {cls && <span className="text-xs text-muted-foreground ml-2">({cls.name})</span>}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {useCount} use{useCount !== 1 ? 's' : ''}
+                              {ic.max_uses !== null && ` / ${ic.max_uses}`}
+                            </span>
                           </div>
                           <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
                             <Copy className="w-3 h-3" />

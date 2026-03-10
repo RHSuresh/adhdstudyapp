@@ -888,15 +888,30 @@ export default function TeacherDashboard() {
               </div>
 
               {classes.length > 0 ? (
-                <div className="space-y-2">
-                  {classes.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between bg-secondary/50 rounded-xl px-3 py-2">
-                      <span className="font-medium text-sm">{c.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {classes.map((c) => {
+                    const roster = classRosters[c.id] || [];
+                    return (
+                      <div key={c.id} className="bg-secondary/50 rounded-xl px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {roster.length} student{roster.length !== 1 ? 's' : ''} • {new Date(c.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {roster.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t border-border/50 pt-2">
+                            {roster.map(s => (
+                              <div key={s.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                {s.full_name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">

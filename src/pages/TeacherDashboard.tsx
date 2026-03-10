@@ -956,19 +956,21 @@ export default function TeacherDashboard() {
               </Button>
 
               {/* Show existing active codes */}
-              {inviteCodes.filter(c => !c.used_by && new Date(c.expires_at) > new Date()).length > 0 && (
+              {inviteCodes.filter(c => new Date(c.expires_at) > new Date()).length > 0 && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-2">Active codes:</p>
                   <div className="space-y-1">
                     {inviteCodes
-                      .filter(c => !c.used_by && new Date(c.expires_at) > new Date())
+                      .filter(c => new Date(c.expires_at) > new Date())
                       .map(ic => {
                         const cls = classes.find(c => c.id === ic.class_id);
+                        const useCount = codeUseCounts[ic.id] || 0;
                         return (
                           <div key={ic.id} className="flex items-center justify-between text-sm">
                             <div>
                               <span className="font-mono font-bold">{ic.code}</span>
                               {cls && <span className="text-xs text-muted-foreground ml-1">({cls.name})</span>}
+                              <span className="text-xs text-muted-foreground ml-1">• {useCount} use{useCount !== 1 ? 's' : ''}</span>
                             </div>
                             <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
                               <Copy className="w-3 h-3" />

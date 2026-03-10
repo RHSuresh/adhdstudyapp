@@ -32,10 +32,16 @@ interface Task {
   points_awarded: number;
 }
 
+interface StudentClass {
+  id: string;
+  name: string;
+}
+
 export default function StudentDashboard() {
   const { user, profile, studentStats, signOut, refreshStats } = useAuth();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [studentClasses, setStudentClasses] = useState<StudentClass[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [activeView, setActiveView] = useState<'tasks' | 'chat' | 'rewards' | 'timer'>('tasks');
@@ -48,7 +54,28 @@ export default function StudentDashboard() {
       return;
     }
     fetchTasks();
+    fetchClasses();
   }, [user, navigate]);
+
+  const fetchClasses = async () => {
+    if (!user) return;
+    const { data: memberships } = await supabase
+      .from('class_students')
+      .select('class_id')
+      .eq('student_id', user.id);
+
+    if (memberships && memberships.length > 0) {
+      const classIds = memberships.map(m => m.class_id);
+      const { data: classesData } = await supabase
+        .from('classes')
+        .select('id, name')
+        .in('id', classIds);
+
+      if (classesData) {
+        setStudentClasses(classesData);
+      }
+    }
+  };
 
   const fetchTasks = async () => {
     if (!user) return;

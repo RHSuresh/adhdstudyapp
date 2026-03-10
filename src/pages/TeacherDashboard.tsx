@@ -134,6 +134,28 @@ export default function TeacherDashboard() {
 
     if (classesData) {
       setClasses(classesData);
+
+      // Fetch roster for each class
+      const rosters: ClassRoster = {};
+      for (const cls of classesData) {
+        const { data: classStudentLinks } = await supabase
+          .from('class_students')
+          .select('student_id')
+          .eq('class_id', cls.id);
+
+        if (classStudentLinks && classStudentLinks.length > 0) {
+          const sIds = classStudentLinks.map(cs => cs.student_id);
+          const { data: studentProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name')
+            .in('user_id', sIds);
+
+          rosters[cls.id] = (studentProfiles || []).map(p => ({ id: p.user_id, full_name: p.full_name }));
+        } else {
+          rosters[cls.id] = [];
+        }
+      }
+      setClassRosters(rosters);
     }
 
     // Fetch invite codes
@@ -145,6 +167,17 @@ export default function TeacherDashboard() {
 
     if (codesData) {
       setInviteCodes(codesData as InviteCode[]);
+
+      // Fetch use counts
+      const counts: { [codeId: string]: number } = {};
+      for (const ic of codesData) {
+        const { count } = await supabase
+          .from('invite_code_uses')
+          .select('id', { count: 'exact', head: true })
+          .eq('code_id', ic.id);
+        counts[ic.id] = count || 0;
+      }
+      setCodeUseCounts(counts);
     }
 
     setLoading(false);

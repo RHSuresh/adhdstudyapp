@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     // Use service role to create the student user
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
     // Create auth user with auto-confirm

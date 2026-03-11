@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 
 type AppRole = 'student' | 'parent' | 'teacher';
 
@@ -17,40 +15,10 @@ const roleToPath: Record<AppRole, string> = {
 };
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
-  const [checking, setChecking] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const { user, role, loading } = useAuth();
 
-  useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
-      setRedirectPath(`/auth/${requiredRole}`);
-      setChecking(false);
-      return;
-    }
-
-    supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .then(({ data }) => {
-        const roles = data?.map((r) => r.role) || [];
-
-        if (roles.includes(requiredRole)) {
-          setHasAccess(true);
-        } else if (roles.length > 0) {
-          // Redirect to their actual role's dashboard
-          setRedirectPath(roleToPath[roles[0] as AppRole] || '/');
-        } else {
-          setRedirectPath('/');
-        }
-        setChecking(false);
-      });
-  }, [user, loading, requiredRole]);
-
-  if (loading || checking) {
+  // Still loading auth state — show spinner, never redirect yet
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -58,12 +26,23 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
 
-  if (redirectPath) {
-    return <Navigate to={redirectPath} replace />;
+  // Not logged in — send to the appropriate auth page
+  if (!user) {
+    return <Navigate to={`/auth/${requiredRole}`} replace />;
   }
 
-  if (!hasAccess) {
-    return <Navigate to="/" replace />;
+  // Role not loaded yet — keep showing spinner rather than redirecting
+  if (!role) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  // Wrong role — redirect to their actual dashboard
+  if (role !== requiredRole) {
+    return <Navigate to={roleToPath[role] || '/'} replace />;
   }
 
   return <>{children}</>;

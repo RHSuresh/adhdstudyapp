@@ -126,11 +126,15 @@ export default function TeacherDashboard() {
     }
 
     // Fetch classes
-    const { data: classesData } = await supabase
+    const { data: classesData, error: classesError } = await supabase
       .from('classes')
       .select('*')
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false });
+
+    if (classesError) {
+      console.error('Classes fetch error:', classesError);
+    }
 
     if (classesData) {
       setClasses(classesData);
@@ -225,7 +229,7 @@ export default function TeacherDashboard() {
     } else {
       toast.success(`Class "${newClassName}" created!`);
       setNewClassName('');
-      fetchData();
+      await fetchData();
     }
   };
 

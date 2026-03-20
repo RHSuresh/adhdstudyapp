@@ -102,6 +102,61 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (!inviteCode.class_id) {
+      return new Response(JSON.stringify({ error: "This invite code is not associated with a class" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: existingCodeUse } = await supabaseAdmin
+      .from("invite_code_uses")
+      .select("id")
+      .eq("code_id", inviteCode.id)
+      .eq("student_id", studentId)
+      .maybeSingle();
+
+    // Check if student is already in the class
+    const { data: existingEnrollment } = await supabaseAdmin
+      .from("class_students")
+      .select("id")
+      .eq("class_id", inviteCode.class_id)
+      .eq("student_id", studentId)
+      .maybeSingle();
+
+    // Get class name once so both idempotent and fresh enrollments can reuse it.
+    const { data: classData } = await supabaseAdmin
+      .from("classes")
+      .select("name")
+      .eq("id", inviteCode.class_id)
+      .single();
+
+    if (existingEnrollment) {
+      if (!existingCodeUse) {
+        const { error: backfillUseError } = await supabaseAdmin
+          .from("invite_code_uses")
+          .insert({
+            code_id: inviteCode.id,
+            parent_id: user.id,
+            student_id: studentId,
+          });
+
+        if (backfillUseError) {
+          console.error("Failed to backfill invite_code_uses:", backfillUseError);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Student is already enrolled in ${classData?.name || "this class"}.`,
+          className: classData?.name,
+          alreadyEnrolled: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Check max_uses if set
     if (inviteCode.max_uses !== null) {
       const { count } = await supabaseAdmin
@@ -115,28 +170,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    }
-
-    if (!inviteCode.class_id) {
-      return new Response(JSON.stringify({ error: "This invite code is not associated with a class" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Check if student is already in the class
-    const { data: existingEnrollment } = await supabaseAdmin
-      .from("class_students")
-      .select("id")
-      .eq("class_id", inviteCode.class_id)
-      .eq("student_id", studentId)
-      .maybeSingle();
-
-    if (existingEnrollment) {
-      return new Response(JSON.stringify({ error: "Student is already enrolled in this class" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     // Enroll student in class
@@ -172,13 +205,6 @@ Deno.serve(async (req) => {
       parent_id: user.id,
       student_id: studentId,
     });
-
-    // Get class name for response
-    const { data: classData } = await supabaseAdmin
-      .from("classes")
-      .select("name")
-      .eq("id", inviteCode.class_id)
-      .single();
 
     return new Response(
       JSON.stringify({

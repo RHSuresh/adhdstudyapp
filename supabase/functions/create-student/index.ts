@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Find the invite code that this parent redeemed
     const { data: inviteCode } = await supabaseAdmin
       .from("invite_codes")
-      .select("teacher_id, class_id")
+      .select("id, teacher_id, class_id")
       .eq("used_by", caller.id)
       .order("used_at", { ascending: false })
       .limit(1)
@@ -131,6 +131,15 @@ Deno.serve(async (req) => {
             student_id: studentId,
           });
         if (classErr) console.error("Class link error:", classErr);
+
+        const { error: codeUseErr } = await supabaseAdmin
+          .from("invite_code_uses")
+          .insert({
+            code_id: inviteCode.id,
+            parent_id: caller.id,
+            student_id: studentId,
+          });
+        if (codeUseErr) console.error("Invite code use error:", codeUseErr);
       }
     } else {
       // Fallback: check if caller also has teacher role

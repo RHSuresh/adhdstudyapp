@@ -94,6 +94,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (inviteCode.revoked_at) {
+      return new Response(JSON.stringify({ error: "This invite code has been invalidated" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check expiry
     if (new Date(inviteCode.expires_at) < new Date()) {
       return new Response(JSON.stringify({ error: "This invite code has expired" }), {

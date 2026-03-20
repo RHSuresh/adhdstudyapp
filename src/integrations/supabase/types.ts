@@ -128,6 +128,7 @@ export type Database = {
           expires_at: string
           id: string
           max_uses: number | null
+          revoked_at: string | null
           teacher_id: string
           used_at: string | null
           used_by: string | null
@@ -139,6 +140,7 @@ export type Database = {
           expires_at: string
           id?: string
           max_uses?: number | null
+          revoked_at?: string | null
           teacher_id: string
           used_at?: string | null
           used_by?: string | null
@@ -150,6 +152,7 @@ export type Database = {
           expires_at?: string
           id?: string
           max_uses?: number | null
+          revoked_at?: string | null
           teacher_id?: string
           used_at?: string | null
           used_by?: string | null

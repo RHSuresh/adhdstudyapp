@@ -40,7 +40,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
 
-  // Wrong role — redirect to their actual dashboard
+  // Wrong role — redirect to their actual dashboards
   if (role !== requiredRole) {
     return <Navigate to={roleToPath[role] || '/'} replace />;
   }

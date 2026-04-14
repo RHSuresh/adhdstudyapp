@@ -103,33 +103,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Use setTimeout to avoid potential deadlock
-        setTimeout(() => fetchUserData(session.user.id), 0);
-      } else {
-        setProfile(null);
-        setRole(null);
-        setStudentStats(null);
-      }
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Get initial session first – this is the source of truth for the
+    // very first render.  Only after it resolves do we flip loading off.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserData(session.user.id);
+        await fetchUserData(session.user.id);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Listen for subsequent auth changes (sign-in, sign-out, token refresh).
+    // We intentionally do NOT set loading here to avoid a flash of the
+    // login page during token refresh.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!mounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await fetchUserData(session.user.id);
+        } else {
+          setProfile(null);
+          setRole(null);
+          setStudentStats(null);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, role: AppRole, inviteCode?: string) => {

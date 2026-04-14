@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle, Copy, BookOpen, Ticket } from 'lucide-react';
+import { School, LogOut, Plus, CheckCircle, Clock, Users, XCircle, Copy, BookOpen, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RoleSwitcher } from '@/components/RoleSwitcher';
 
@@ -52,6 +52,7 @@ interface InviteCode {
   expires_at: string;
   created_at: string;
   max_uses: number | null;
+  revoked_at: string | null;
 }
 
 export default function TeacherDashboard() {
@@ -63,6 +64,7 @@ export default function TeacherDashboard() {
   const [classRosters, setClassRosters] = useState<ClassRoster>({});
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
   const [codeUseCounts, setCodeUseCounts] = useState<{ [codeId: string]: number }>({});
+  const [invalidatingCodeId, setInvalidatingCodeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -209,8 +211,8 @@ export default function TeacherDashboard() {
         fetchData();
       }
       setIsLinkingStudent(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
     }
   };
 
@@ -254,14 +256,45 @@ export default function TeacherDashboard() {
         setSelectedClassForCode('');
         fetchData();
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
     }
   };
 
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast.success('Code copied to clipboard!');
+  };
+
+  const isInviteCodeActive = (inviteCode: InviteCode) =>
+    !inviteCode.revoked_at && new Date(inviteCode.expires_at) > new Date();
+
+  const handleInvalidateInviteCode = async (inviteCode: InviteCode) => {
+    if (!user) return;
+
+    const confirmed = window.confirm(`Invalidate invite code ${inviteCode.code}? This will immediately prevent future use.`);
+    if (!confirmed) return;
+
+    setInvalidatingCodeId(inviteCode.id);
+    const revokedAt = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('invite_codes')
+      .update({ revoked_at: revokedAt })
+      .eq('id', inviteCode.id)
+      .eq('teacher_id', user.id);
+
+    if (error) {
+      toast.error('Failed to invalidate invite code');
+      setInvalidatingCodeId(null);
+      return;
+    }
+
+    setInviteCodes(current =>
+      current.map(code => (code.id === inviteCode.id ? { ...code, revoked_at: revokedAt } : code))
+    );
+    toast.success(`Invite code ${inviteCode.code} invalidated`);
+    setInvalidatingCodeId(null);
   };
 
   const handleCreateTask = async () => {
@@ -414,6 +447,7 @@ export default function TeacherDashboard() {
 
   const pendingApproval = tasks.filter(t => t.completion_requested && !t.completion_approved);
   const completedTasks = tasks.filter(t => t.completion_approved);
+  const activeInviteCodes = inviteCodes.filter(isInviteCodeActive);
   const activeTasks = tasks.filter(t => !t.completion_requested && !t.completion_approved);
 
   if (loading) {
@@ -658,7 +692,7 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Classes & Invite Codes Summary */}
-        {(classes.length > 0 || inviteCodes.length > 0) && (
+        {(classes.length > 0 || activeInviteCodes.length > 0) && (
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             {classes.length > 0 && (
               <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
@@ -698,15 +732,14 @@ export default function TeacherDashboard() {
               </div>
             )}
 
-            {inviteCodes.length > 0 && (
+            {activeInviteCodes.length > 0 && (
               <div className="bg-card rounded-2xl p-4 shadow-soft border border-border/50">
                 <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                   <Ticket className="w-4 h-4 text-primary" />
                   Active Invite Codes
                 </h3>
                 <div className="space-y-2">
-                  {inviteCodes
-                    .filter(c => new Date(c.expires_at) > new Date())
+                  {activeInviteCodes
                     .slice(0, 5)
                     .map((ic) => {
                       const cls = classes.find(c => c.id === ic.class_id);
@@ -721,9 +754,20 @@ export default function TeacherDashboard() {
                               {ic.max_uses !== null && ` / ${ic.max_uses}`}
                             </span>
                           </div>
-                          <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
-                            <Copy className="w-3 h-3" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleInvalidateInviteCode(ic)}
+                              disabled={invalidatingCodeId === ic.id}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -960,12 +1004,11 @@ export default function TeacherDashboard() {
               </Button>
 
               {/* Show existing active codes */}
-              {inviteCodes.filter(c => new Date(c.expires_at) > new Date()).length > 0 && (
+              {activeInviteCodes.length > 0 && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-2">Active codes:</p>
                   <div className="space-y-1">
-                    {inviteCodes
-                      .filter(c => new Date(c.expires_at) > new Date())
+                    {activeInviteCodes
                       .map(ic => {
                         const cls = classes.find(c => c.id === ic.class_id);
                         const useCount = codeUseCounts[ic.id] || 0;
@@ -976,9 +1019,20 @@ export default function TeacherDashboard() {
                               {cls && <span className="text-xs text-muted-foreground ml-1">({cls.name})</span>}
                               <span className="text-xs text-muted-foreground ml-1">• {useCount} use{useCount !== 1 ? 's' : ''}</span>
                             </div>
-                            <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
-                              <Copy className="w-3 h-3" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => copyCode(ic.code)}>
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleInvalidateInviteCode(ic)}
+                                disabled={invalidatingCodeId === ic.id}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
                           </div>
                         );
                       })}

@@ -193,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .select('*')
             .eq('code', inviteCode)
             .is('used_by', null)
+            .is('revoked_at', null)
             .gt('expires_at', new Date().toISOString())
             .maybeSingle();
 

@@ -219,19 +219,27 @@ export default function TeacherDashboard() {
   const handleCreateClass = async () => {
     if (!newClassName.trim() || !user) return;
 
-    const { error } = await supabase
-      .from('classes')
-      .insert({
-        name: newClassName.trim(),
-        teacher_id: user.id,
-      });
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .insert({
+          name: newClassName.trim(),
+          teacher_id: user.id,
+        })
+        .select()
+        .single();
 
-    if (error) {
-      toast.error('Failed to create class');
-    } else {
-      toast.success(`Class "${newClassName}" created!`);
-      setNewClassName('');
-      await fetchData();
+      if (error) {
+        console.error('Create class error:', error);
+        toast.error(`Failed to create class: ${error.message}`);
+      } else {
+        toast.success(`Class "${newClassName}" created!`);
+        setNewClassName('');
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Create class exception:', err);
+      toast.error('Something went wrong creating the class');
     }
   };
 
@@ -327,10 +335,11 @@ export default function TeacherDashboard() {
         points_awarded: newTask.points_awarded,
       }));
 
-      const { error } = await supabase.from('tasks').insert(tasksToInsert);
+      const { error } = await supabase.from('tasks').insert(tasksToInsert).select();
 
       if (error) {
-        toast.error('Failed to assign tasks');
+        console.error('Assign tasks error:', error);
+        toast.error(`Failed to assign tasks: ${error.message}`);
       } else {
         toast.success(`Task assigned to ${classStudents.length} students!`);
         resetTaskForm();
@@ -349,10 +358,13 @@ export default function TeacherDashboard() {
           priority: newTask.priority,
           due_date: newTask.due_date || null,
           points_awarded: newTask.points_awarded,
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
-        toast.error('Failed to create task');
+        console.error('Create task error:', error);
+        toast.error(`Failed to create task: ${error.message}`);
       } else {
         toast.success('Task assigned successfully!');
         resetTaskForm();

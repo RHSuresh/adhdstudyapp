@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: adhdstudyapp
+    env: static
+    region: oregon
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_CHAT_API_URL
+        value: https://luridness-icky-swimmer.ngrok-free.dev/api/chat

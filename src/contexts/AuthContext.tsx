@@ -42,35 +42,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
-    // Fetch profile
-    const { data: profileData } = await supabase
+    // Get user metadata as a fallback source for name / role
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const meta = currentUser?.user_metadata as
+      | { full_name?: string; role?: string }
+      | undefined;
+    const metaRole = meta?.role as AppRole | undefined;
+
+    // ---- Profile ----
+    let { data: profileData } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
-    
-    if (profileData) {
-      setProfile(profileData);
-    }
 
-    // Fetch role
-    const { data: roleData } = await supabase
+    if (!profileData && meta?.full_name) {
+      // Row is missing (signup insert may have been blocked by RLS) — create it now
+      const { data: inserted } = await supabase
+        .from('profiles')
+        .upsert({ user_id: userId, full_name: meta.full_name }, { onConflict: 'user_id' })
+        .select()
+        .maybeSingle();
+      profileData = inserted;
+    }
+    if (profileData) setProfile(profileData);
+
+    // ---- Role ----
+    let { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .maybeSingle();
-    
+
+    if (!roleData && metaRole) {
+      const { data: inserted } = await supabase
+        .from('user_roles')
+        .upsert({ user_id: userId, role: metaRole }, { onConflict: 'user_id' })
+        .select('role')
+        .maybeSingle();
+      roleData = inserted;
+    }
+
     if (roleData) {
-      setRole(roleData.role as AppRole);
-      
-      // If student, fetch stats
-      if (roleData.role === 'student') {
-        const { data: statsData } = await supabase
+      const resolvedRole = roleData.role as AppRole;
+      setRole(resolvedRole);
+
+      // ---- Student stats ----
+      if (resolvedRole === 'student') {
+        let { data: statsData } = await supabase
           .from('student_stats')
           .select('*')
           .eq('user_id', userId)
           .maybeSingle();
-        
+
+        if (!statsData) {
+          const { data: inserted } = await supabase
+            .from('student_stats')
+            .upsert(
+              { user_id: userId, points: 0, streak_days: 0, tasks_completed: 0 },
+              { onConflict: 'user_id' },
+            )
+            .select()
+            .maybeSingle();
+          statsData = inserted;
+        }
+
         if (statsData) {
           setStudentStats({
             points: statsData.points,
@@ -80,6 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
       }
+    } else if (metaRole) {
+      // Even upsert failed — still set role from JWT so the user isn't stuck
+      setRole(metaRole);
     }
   };
 
@@ -162,38 +201,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        // Create profile
-        const { error: profileError } = await supabase
+        // Best-effort row creation. If the session isn't active yet (e.g.
+        // email confirmation required) these may fail due to RLS — that's fine
+        // because fetchUserData will auto-create them on next login.
+        await supabase
           .from('profiles')
-          .insert({
-            user_id: data.user.id,
-            full_name: fullName,
-          });
-        
-        if (profileError) console.error('Profile creation error:', profileError);
+          .upsert({ user_id: data.user.id, full_name: fullName }, { onConflict: 'user_id' });
 
-        // Create role
-        const { error: roleError } = await supabase
+        await supabase
           .from('user_roles')
-          .insert({
-            user_id: data.user.id,
-            role: role,
-          });
-        
-        if (roleError) console.error('Role creation error:', roleError);
+          .upsert({ user_id: data.user.id, role: role }, { onConflict: 'user_id' });
 
         // If student, create stats
         if (role === 'student') {
-          const { error: statsError } = await supabase
+          await supabase
             .from('student_stats')
-            .insert({
-              user_id: data.user.id,
-              points: 0,
-              streak_days: 0,
-              tasks_completed: 0,
-            });
-          
-          if (statsError) console.error('Stats creation error:', statsError);
+            .upsert(
+              { user_id: data.user.id, points: 0, streak_days: 0, tasks_completed: 0 },
+              { onConflict: 'user_id' },
+            );
         }
 
         // If parent with invite code, redeem it

@@ -42,83 +42,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
-    // Get user metadata as a fallback source for name / role
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    const meta = currentUser?.user_metadata as
-      | { full_name?: string; role?: string }
-      | undefined;
-    const metaRole = meta?.role as AppRole | undefined;
+    try {
+      // Get user metadata as a fallback source for name / role
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const meta = currentUser?.user_metadata as
+        | { full_name?: string; role?: string }
+        | undefined;
+      const metaRole = meta?.role as AppRole | undefined;
 
-    // ---- Profile ----
-    let { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!profileData && meta?.full_name) {
-      // Row is missing (signup insert may have been blocked by RLS) — create it now
-      const { data: inserted } = await supabase
+      // ---- Profile ----
+      let { data: profileData } = await supabase
         .from('profiles')
-        .upsert({ user_id: userId, full_name: meta.full_name }, { onConflict: 'user_id' })
-        .select()
+        .select('*')
+        .eq('user_id', userId)
         .maybeSingle();
-      profileData = inserted;
-    }
-    if (profileData) setProfile(profileData);
 
-    // ---- Role ----
-    let { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!roleData && metaRole) {
-      const { data: inserted } = await supabase
-        .from('user_roles')
-        .upsert({ user_id: userId, role: metaRole }, { onConflict: 'user_id' })
-        .select('role')
-        .maybeSingle();
-      roleData = inserted;
-    }
-
-    if (roleData) {
-      const resolvedRole = roleData.role as AppRole;
-      setRole(resolvedRole);
-
-      // ---- Student stats ----
-      if (resolvedRole === 'student') {
-        let { data: statsData } = await supabase
-          .from('student_stats')
-          .select('*')
-          .eq('user_id', userId)
+      if (!profileData && meta?.full_name) {
+        // Row is missing (signup insert may have been blocked by RLS) — create it now
+        const { data: inserted, error: upsertErr } = await supabase
+          .from('profiles')
+          .upsert({ user_id: userId, full_name: meta.full_name }, { onConflict: 'user_id' })
+          .select()
           .maybeSingle();
-
-        if (!statsData) {
-          const { data: inserted } = await supabase
-            .from('student_stats')
-            .upsert(
-              { user_id: userId, points: 0, streak_days: 0, tasks_completed: 0 },
-              { onConflict: 'user_id' },
-            )
-            .select()
-            .maybeSingle();
-          statsData = inserted;
-        }
-
-        if (statsData) {
-          setStudentStats({
-            points: statsData.points,
-            streak_days: statsData.streak_days,
-            tasks_completed: statsData.tasks_completed,
-            last_completed_date: statsData.last_completed_date,
-          });
-        }
+        if (upsertErr) console.warn('Profile upsert failed:', upsertErr.message);
+        else profileData = inserted;
       }
-    } else if (metaRole) {
-      // Even upsert failed — still set role from JWT so the user isn't stuck
-      setRole(metaRole);
+      if (profileData) setProfile(profileData);
+
+      // ---- Role ----
+      let { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!roleData && metaRole) {
+        const { data: inserted, error: upsertErr } = await supabase
+          .from('user_roles')
+          .upsert({ user_id: userId, role: metaRole }, { onConflict: 'user_id' })
+          .select('role')
+          .maybeSingle();
+        if (upsertErr) console.warn('Role upsert failed:', upsertErr.message);
+        else roleData = inserted;
+      }
+
+      if (roleData) {
+        const resolvedRole = roleData.role as AppRole;
+        setRole(resolvedRole);
+
+        // ---- Student stats ----
+        if (resolvedRole === 'student') {
+          let { data: statsData } = await supabase
+            .from('student_stats')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!statsData) {
+            const { data: inserted, error: upsertErr } = await supabase
+              .from('student_stats')
+              .upsert(
+                { user_id: userId, points: 0, streak_days: 0, tasks_completed: 0 },
+                { onConflict: 'user_id' },
+              )
+              .select()
+              .maybeSingle();
+            if (upsertErr) console.warn('Stats upsert failed:', upsertErr.message);
+            else statsData = inserted;
+          }
+
+          if (statsData) {
+            setStudentStats({
+              points: statsData.points,
+              streak_days: statsData.streak_days,
+              tasks_completed: statsData.tasks_completed,
+              last_completed_date: statsData.last_completed_date,
+            });
+          }
+        }
+      } else if (metaRole) {
+        // Even upsert failed — still set role from JWT so the user isn't stuck
+        setRole(metaRole);
+      }
+    } catch (err) {
+      console.error('fetchUserData failed:', err);
+      // Last-resort fallback: read role from JWT so the user can proceed
+      try {
+        const { data: { user: fallbackUser } } = await supabase.auth.getUser();
+        const fallbackRole = fallbackUser?.user_metadata?.role as AppRole | undefined;
+        if (fallbackRole) setRole(fallbackRole);
+      } catch {
+        // nothing more we can do
+      }
     }
   };
 

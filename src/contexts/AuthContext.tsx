@@ -42,22 +42,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string, userMeta?: Record<string, unknown>) => {
+    console.log('[AUTH] fetchUserData START for', userId, 'meta:', userMeta);
     // Declare outside try so catch can access it
     let meta = userMeta as { full_name?: string; role?: string } | undefined;
     try {
       // Use metadata passed from the session (no extra network call).
       // Fall back to getUser() only if metadata wasn't supplied.
       if (!meta?.role) {
+        console.log('[AUTH] No role in meta, calling getUser()...');
         try {
           const { data: { user: currentUser } } = await supabase.auth.getUser();
           meta = currentUser?.user_metadata as typeof meta;
+          console.log('[AUTH] getUser() returned meta:', meta);
         } catch {
-          // network call failed — we'll work with what we have
+          console.warn('[AUTH] getUser() network call failed');
         }
       }
       const metaRole = meta?.role as AppRole | undefined;
 
+      console.log('[AUTH] metaRole:', metaRole);
+
       // ---- Profile ----
+      console.log('[AUTH] Fetching profile...');
       let { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -75,8 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         else profileData = inserted;
       }
       if (profileData) setProfile(profileData);
+      console.log('[AUTH] Profile result:', profileData ? 'found' : 'missing');
 
       // ---- Role ----
+      console.log('[AUTH] Fetching role...');
       let { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
@@ -95,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (roleData) {
         const resolvedRole = roleData.role as AppRole;
+        console.log('[AUTH] Role resolved:', resolvedRole);
         setRole(resolvedRole);
 
         // ---- Student stats ----
@@ -129,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else if (metaRole) {
         // Even upsert failed — still set role from JWT so the user isn't stuck
+        console.log('[AUTH] Using metaRole fallback:', metaRole);
         setRole(metaRole);
       } else {
         // Absolutely no role found — set null explicitly so ProtectedRoute
@@ -136,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('fetchUserData: could not determine role for', userId);
       }
     } catch (err) {
-      console.error('fetchUserData failed:', err);
+      console.error('[AUTH] fetchUserData CATCH:', err);
       // Last-resort fallback: use the metadata we already have
       if (meta?.role) {
         setRole(meta.role as AppRole);
@@ -177,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session first – this is the source of truth for the
     // very first render.  Only after it resolves do we flip loading off.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[AUTH] getSession result:', session ? `user=${session.user.id}` : 'no session');
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
@@ -184,9 +195,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await fetchUserData(session.user.id, session.user.user_metadata);
         } catch (err) {
-          console.error('getSession fetchUserData failed:', err);
+          console.error('[AUTH] getSession fetchUserData failed:', err);
         }
       }
+      console.log('[AUTH] Setting loading=false');
       if (mounted) setLoading(false);
     });
 

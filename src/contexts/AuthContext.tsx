@@ -41,13 +41,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [studentStats, setStudentStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserData = async (userId: string) => {
+  const fetchUserData = async (userId: string, userMeta?: Record<string, unknown>) => {
+    // Declare outside try so catch can access it
+    let meta = userMeta as { full_name?: string; role?: string } | undefined;
     try {
-      // Get user metadata as a fallback source for name / role
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const meta = currentUser?.user_metadata as
-        | { full_name?: string; role?: string }
-        | undefined;
+      // Use metadata passed from the session (no extra network call).
+      // Fall back to getUser() only if metadata wasn't supplied.
+      if (!meta?.role) {
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          meta = currentUser?.user_metadata as typeof meta;
+        } catch {
+          // network call failed — we'll work with what we have
+        }
+      }
       const metaRole = meta?.role as AppRole | undefined;
 
       // ---- Profile ----
@@ -123,16 +130,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (metaRole) {
         // Even upsert failed — still set role from JWT so the user isn't stuck
         setRole(metaRole);
+      } else {
+        // Absolutely no role found — set null explicitly so ProtectedRoute
+        // can detect "finished loading but no role" vs "still loading"
+        console.warn('fetchUserData: could not determine role for', userId);
       }
     } catch (err) {
       console.error('fetchUserData failed:', err);
-      // Last-resort fallback: read role from JWT so the user can proceed
-      try {
-        const { data: { user: fallbackUser } } = await supabase.auth.getUser();
-        const fallbackRole = fallbackUser?.user_metadata?.role as AppRole | undefined;
-        if (fallbackRole) setRole(fallbackRole);
-      } catch {
-        // nothing more we can do
+      // Last-resort fallback: use the metadata we already have
+      if (meta?.role) {
+        setRole(meta.role as AppRole);
       }
     }
   };
@@ -166,7 +173,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchUserData(session.user.id);
+        try {
+          await fetchUserData(session.user.id, session.user.user_metadata);
+        } catch (err) {
+          console.error('getSession fetchUserData failed:', err);
+        }
       }
       if (mounted) setLoading(false);
     });
@@ -181,7 +192,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          await fetchUserData(session.user.id);
+          try {
+            await fetchUserData(session.user.id, session.user.user_metadata);
+          } catch (err) {
+            console.error('onAuthStateChange fetchUserData failed:', err);
+          }
         } else {
           setProfile(null);
           setRole(null);

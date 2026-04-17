@@ -166,6 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // Safety net: never stay in loading state for more than 5 seconds.
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth loading safety timeout reached — forcing loading=false');
+        setLoading(false);
+      }
+    }, 5000);
+
     // Get initial session first – this is the source of truth for the
     // very first render.  Only after it resolves do we flip loading off.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -207,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -283,12 +292,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) throw error;
+
+      // Eagerly set user & session so ProtectedRoute doesn't redirect
+      // before onAuthStateChange fires.
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
+      }
+      if (data.user) {
+        try {
+          await fetchUserData(data.user.id, data.user.user_metadata);
+        } catch (err) {
+          console.error('signIn fetchUserData failed:', err);
+        }
+      }
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };

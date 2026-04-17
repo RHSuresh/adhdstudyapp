@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -44,8 +44,15 @@ export function AuthPage({ role }: AuthPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, role: authRole } = useAuth();
   const navigate = useNavigate();
+
+  // If user is already authenticated, redirect to their dashboard
+  useEffect(() => {
+    if (user && authRole) {
+      navigate(`/${authRole}`, { replace: true });
+    }
+  }, [user, authRole, navigate]);
   
   const config = roleConfig[role];
   const Icon = config.icon;

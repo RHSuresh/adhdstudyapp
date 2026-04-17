@@ -41,6 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [studentStats, setStudentStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper: race a promise/thenable against a timeout so DB calls can't hang forever
+  const withTimeout = <T,>(thenable: PromiseLike<T>, ms = 4000): Promise<T> =>
+    Promise.race([
+      Promise.resolve(thenable),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Supabase query timed out after ${ms}ms`)), ms),
+      ),
+    ]);
+
   const fetchUserData = async (userId: string, userMeta?: Record<string, unknown>) => {
     console.log('[AUTH] fetchUserData START for', userId, 'meta:', userMeta);
     // Declare outside try so catch can access it
@@ -51,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!meta?.role) {
         console.log('[AUTH] No role in meta, calling getUser()...');
         try {
-          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          const { data: { user: currentUser } } = await withTimeout(supabase.auth.getUser());
           meta = currentUser?.user_metadata as typeof meta;
           console.log('[AUTH] getUser() returned meta:', meta);
         } catch {
@@ -64,20 +73,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // ---- Profile ----
       console.log('[AUTH] Fetching profile...');
-      let { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      let { data: profileData } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle()
+      );
 
       if (!profileData && meta?.full_name) {
-        // Row is missing (signup insert may have been blocked by RLS) — create it now
-        const { data: inserted, error: upsertErr } = await supabase
-          .from('profiles')
-          .upsert({ user_id: userId, full_name: meta.full_name }, { onConflict: 'user_id' })
-          .select()
-          .maybeSingle();
-        if (upsertErr) console.warn('Profile upsert failed:', upsertErr.message);
+        console.log('[AUTH] Profile missing, upserting...');
+        const { data: inserted, error: upsertErr } = await withTimeout(
+          supabase
+            .from('profiles')
+            .upsert({ user_id: userId, full_name: meta.full_name }, { onConflict: 'user_id' })
+            .select()
+            .maybeSingle()
+        );
+        if (upsertErr) console.warn('[AUTH] Profile upsert failed:', upsertErr.message);
         else profileData = inserted;
       }
       if (profileData) setProfile(profileData);
@@ -85,19 +98,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // ---- Role ----
       console.log('[AUTH] Fetching role...');
-      let { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
+      let { data: roleData } = await withTimeout(
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle()
+      );
 
       if (!roleData && metaRole) {
-        const { data: inserted, error: upsertErr } = await supabase
-          .from('user_roles')
-          .upsert({ user_id: userId, role: metaRole }, { onConflict: 'user_id' })
-          .select('role')
-          .maybeSingle();
-        if (upsertErr) console.warn('Role upsert failed:', upsertErr.message);
+        console.log('[AUTH] Role missing, upserting...');
+        const { data: inserted, error: upsertErr } = await withTimeout(
+          supabase
+            .from('user_roles')
+            .upsert({ user_id: userId, role: metaRole }, { onConflict: 'user_id' })
+            .select('role')
+            .maybeSingle()
+        );
+        if (upsertErr) console.warn('[AUTH] Role upsert failed:', upsertErr.message);
         else roleData = inserted;
       }
 
@@ -108,22 +126,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // ---- Student stats ----
         if (resolvedRole === 'student') {
-          let { data: statsData } = await supabase
-            .from('student_stats')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle();
+          let { data: statsData } = await withTimeout(
+            supabase
+              .from('student_stats')
+              .select('*')
+              .eq('user_id', userId)
+              .maybeSingle()
+          );
 
           if (!statsData) {
-            const { data: inserted, error: upsertErr } = await supabase
-              .from('student_stats')
-              .upsert(
-                { user_id: userId, points: 0, streak_days: 0, tasks_completed: 0 },
-                { onConflict: 'user_id' },
-              )
-              .select()
-              .maybeSingle();
-            if (upsertErr) console.warn('Stats upsert failed:', upsertErr.message);
+            const { data: inserted, error: upsertErr } = await withTimeout(
+              supabase
+                .from('student_stats')
+                .upsert(
+                  { user_id: userId, points: 0, streak_days: 0, tasks_completed: 0 },
+                  { onConflict: 'user_id' },
+                )
+                .select()
+                .maybeSingle()
+            );
+            if (upsertErr) console.warn('[AUTH] Stats upsert failed:', upsertErr.message);
             else statsData = inserted;
           }
 
@@ -137,18 +159,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       } else if (metaRole) {
-        // Even upsert failed — still set role from JWT so the user isn't stuck
         console.log('[AUTH] Using metaRole fallback:', metaRole);
         setRole(metaRole);
       } else {
-        // Absolutely no role found — set null explicitly so ProtectedRoute
-        // can detect "finished loading but no role" vs "still loading"
-        console.warn('fetchUserData: could not determine role for', userId);
+        console.warn('[AUTH] could not determine role for', userId);
       }
     } catch (err) {
       console.error('[AUTH] fetchUserData CATCH:', err);
       // Last-resort fallback: use the metadata we already have
       if (meta?.role) {
+        console.log('[AUTH] Using meta fallback after error:', meta.role);
         setRole(meta.role as AppRole);
       }
     }

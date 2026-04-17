@@ -2,7 +2,6 @@ services:
   - type: web
     name: adhdstudyapp
     env: static
-    region: oregon
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     routes:

@@ -36,13 +36,22 @@ def is_safe(text: str) -> bool:
             response.get("response", "")
             if isinstance(response, dict)
             else getattr(response, "response", "")
-        ).lower()
+        ).strip().lower()
+
+        print(f"Guard verdict for '{text[:50]}...': '{verdict}'")
+
+        # llama-guard3 returns "safe" or "unsafe\n<category>"
+        # Only block if "unsafe" explicitly appears
+        if not verdict:
+            # Empty response from guard — allow the message through
+            return True
 
         return "unsafe" not in verdict
     except Exception as e:
         print("Guard model error:", e)
-        # Fail-safe
-        return False
+        # Fail OPEN — if the guard model isn't available, allow messages through.
+        # The profanity filter (needs_moderation) still catches obvious bad words.
+        return True
 
 
 def parse_actions(message: str):

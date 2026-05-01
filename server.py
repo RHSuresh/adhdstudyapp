@@ -87,8 +87,12 @@ def parse_actions(message: str):
     return actions
 
 
-@app.route("/api/chat", methods=["POST"])
+@app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
+    # CORS preflight
+    if request.method == "OPTIONS":
+        return ("", 204)
+
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
 
@@ -143,7 +147,8 @@ def chat():
 
     except Exception as e:
         print("Backend error:", e)
-        return jsonify({"error": "Model error"}), 500
+        # Local dev: surface the underlying error so it's debuggable from the browser console.
+        return jsonify({"error": "Model error", "detail": str(e)}), 500
 
 
 if __name__ == "__main__":

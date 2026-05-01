@@ -18,14 +18,13 @@ def add_cors_headers(response):
         "Access-Control-Request-Headers",
         "Content-Type, Authorization",
     )
-    response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     response.headers["Vary"] = "Origin"
     return response
 
 def cors_preflight_response():
     response = app.make_response(("", 200))
-    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = request.headers.get(
         "Access-Control-Request-Headers",

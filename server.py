@@ -111,7 +111,7 @@ def parse_actions(message: str):
     return actions
 
 
-@app.route("/api/chat", methods=["POST", "OPTIONS"])
+@app.route("/api/chat", methods=["POST", "OPTIONS"], strict_slashes=False)
 def chat():
     # CORS preflight
     if request.method == "OPTIONS":

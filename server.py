@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import ollama
 from better_profanity import profanity
 import re
@@ -8,13 +7,25 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__)
 
 # Allow all origins (simple local dev setup).
-CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
     response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "Access-Control-Request-Headers",
+        "Content-Type, Authorization",
+    )
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    response.headers["Vary"] = "Origin"
+    return response
+
+def cors_preflight_response():
+    response = app.make_response(("", 200))
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
     response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = request.headers.get(
         "Access-Control-Request-Headers",
@@ -104,7 +115,7 @@ def parse_actions(message: str):
 def chat():
     # CORS preflight
     if request.method == "OPTIONS":
-        return ("", 204)
+        return cors_preflight_response()
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()

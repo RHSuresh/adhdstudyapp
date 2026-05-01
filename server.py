@@ -7,18 +7,9 @@ from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 
-# Local dev: allow the Vite dev server and anything else you explicitly add.
-# Using "*" can still produce confusing browser errors in some Socket.IO cases,
-# so default to localhost origins but keep it easy to widen.
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5001",
-    "http://127.0.0.1:5001",
-]
-
-CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})
-socketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS)
+# Allow all origins (simple local dev setup).
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 client = ollama.Client()
 

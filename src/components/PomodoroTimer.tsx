@@ -47,7 +47,35 @@ export function PomodoroTimer({ externalActions, onActionsProcessed }: PomodoroT
   const [isRunning, setIsRunning] = useState(false);
   const [completedSessions, setCompletedSessions] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const socketRef = useRef(io(import.meta.env.VITE_CHAT_API_URL?.replace('/api/chat', '') || 'http://localhost:5001'));
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+
+  // Derive the socket server base URL from VITE_CHAT_API_URL when present.
+  // Falls back to local Flask server for local development.
+  const getSocketServerUrl = () => {
+    const raw = (import.meta.env.VITE_CHAT_API_URL as string | undefined)?.trim();
+    if (raw) {
+      try {
+        // Works for "http://localhost:5001/api/chat", "http://localhost:5001", etc.
+        return new URL(raw, window.location.origin).origin;
+      } catch {
+        // If it's not a valid URL, fall back to local default.
+      }
+    }
+    return 'http://localhost:5001';
+  };
+
+  // Connect once on mount (and cleanly disconnect on unmount).
+  useEffect(() => {
+    const socket = io(getSocketServerUrl(), {
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle external actions from chatbot
   useEffect(() => {
@@ -88,6 +116,7 @@ export function PomodoroTimer({ externalActions, onActionsProcessed }: PomodoroT
   // Direct WebSocket connection for real-time timer control
   useEffect(() => {
     const socket = socketRef.current;
+    if (!socket) return;
     socket.on('timer_actions', (actions: TimerAction[]) => {
       for (const action of actions) {
         switch (action.type) {

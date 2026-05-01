@@ -12,8 +12,16 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.after_request
-def add_private_network_access_header(response):
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "Access-Control-Request-Headers",
+        "Content-Type",
+    )
     response.headers["Access-Control-Allow-Private-Network"] = "true"
+    response.headers["Vary"] = "Origin"
     return response
 
 client = ollama.Client()

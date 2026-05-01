@@ -11,6 +11,11 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+@app.after_request
+def add_private_network_access_header(response):
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
 client = ollama.Client()
 
 # changed the model to recieve faster response (Initially, Llama 3.1)
